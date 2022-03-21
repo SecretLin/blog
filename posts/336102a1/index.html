@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html>
+<head><meta name="generator" content="Hexo 3.8.0">
+    <meta http-equiv="Content-Language" content="zh-cn">
+    <meta charset="utf-8">
+    
+    
+    
+    <title>浅析Handler消息机制二 | Secret</title>
+    <meta name="viewport" content="width=device-width,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+    
+    <meta name="theme-color" content="#77AAFF">
+    
+    
+    <meta name="keywords" content="Android,Handler">
+    
+    
+
+    
+
+    <!-- Baidu Push -->
+<script>
+	(function(){
+		var bp = document.createElement('script');
+		var curProtocol = window.location.protocol.split(':')[0];
+		if (curProtocol === 'https') {
+			bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
+		}
+		else {
+			bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+		}
+		var s = document.getElementsByTagName("script")[0];
+		s.parentNode.insertBefore(bp, s);
+	})();
+
+	var _hmt = _hmt || [];
+</script>
+
+
+
+    
+    <meta name="description" content="本文进一步分析Handler和Looper的源码">
+<meta name="keywords" content="Android,Handler">
+<meta property="og:type" content="article">
+<meta property="og:title" content="浅析Handler消息机制二">
+<meta property="og:url" content="https://secretlin.github.io/blog/posts/336102a1/index.html">
+<meta property="og:site_name" content="Secret">
+<meta property="og:description" content="本文进一步分析Handler和Looper的源码">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2022-03-21T06:48:53.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="浅析Handler消息机制二">
+<meta name="twitter:description" content="本文进一步分析Handler和Looper的源码">
+    
+        <link rel="alternate" type="application/atom+xml" title="Secret" href="/blog/atom.xml">
+    
+    <link rel="shortcut icon" href="/blog/img/favicon.ico">
+    <link id="style" rel="stylesheet" href="/blog/css/style.css?v=3.0">
+    <script>window.lazyScripts=[]</script>
+
+    <!-- custom head -->
+    
+            
+</head>
+
+<body>
+    <div id="loading" class="active"></div>
+    <aside id="menu" class="hide">
+  <div class="inner flex-row-vertical">
+    <a href="javascript:;" class="header-icon waves-effect waves-circle waves-light" id="menu-off">
+        <i class="icon icon-lg icon-close"></i>
+    </a>
+    <div class="brand-wrap">
+      <div class="brand">
+        <a href="/blog/" class="avatar waves-effect waves-circle waves-light">
+          <img src="/blog/img/avatar.jpg" alt="avatar">
+        </a>
+        <hgroup class="introduce">
+          <h5 class="nickname" id="name">Secret</h5>
+          
+            <div id="yiyanmotto" class="motto">&nbsp;</div>
+          
+        </hgroup>
+      </div>
+    </div>
+    <div class="scroll-wrap flex-col">
+      <ul class="nav">
+        
+              <li class="waves-block waves-effect">
+                  <a href="/blog/">
+                    <i class="icon icon-lg icon-home"></i>
+                    <span>主 页</span><i class="icon icon-lg icon-caret-left"></i>
+                  </a>
+              </li>
+            
+              <li class="waves-block waves-effect">
+                  <a href="/blog/archives">
+                    <i class="icon icon-lg icon-archives"></i>
+                    <span>归 档</span><i class="icon icon-lg icon-caret-left"></i>
+                  </a>
+              </li>
+            
+              <li class="waves-block waves-effect">
+                  <a href="/blog/categories">
+                    <i class="icon icon-lg icon-th-list"></i>
+                    <span>分 类</span><i class="icon icon-lg icon-caret-left"></i>
+                  </a>
+              </li>
+            
+              <li class="waves-block waves-effect">
+                  <a href="/blog/tags">
+                    <i class="icon icon-lg icon-tags"></i>
+                    <span>标 签</span><i class="icon icon-lg icon-caret-left"></i>
+                  </a>
+              </li>
+            
+              <li class="waves-block waves-effect">
+                  <a href="/blog/about">
+                    <i class="icon icon-lg icon-smile-o"></i>
+                    <span>关 于</span><i class="icon icon-lg icon-caret-left"></i>
+                  </a>
+              </li>
+            
+      <div class="nav2">
+          
+              <a class="nav2item" data-title="Email" href="mailto:592335012@qq.com" target="_parent" title="Email">
+                <i class="icon icon-lg icon-envelope-o envelope-o"></i>
+              </a>
+          
+              <a class="nav2item" data-title="Github" href="https://github.com/SecretLin" target="_blank" title="Github">
+                <i class="icon icon-lg icon-github github"></i>
+              </a>
+          
+
+            </div>
+        
+      </ul>
+        
+    </div>
+  </div>
+ 
+</aside>
+
+
+    <main id="main">
+        <header class="top-header" id="header">
+    <div class="flex-row">
+        <a href="javascript:;" class="header-icon waves-effect waves-circle waves-light on" id="menu-toggle">
+          <i class="icon icon-lg icon-navicon"></i>
+        </a>
+        <div class="flex-col header-title ellipsis">浅析Handler消息机制二</div>
+        
+        <div class="search-wrap" id="search-wrap">
+            <a href="javascript:;" class="header-icon waves-effect waves-circle waves-light" id="back">
+                <i class="icon icon-lg icon-chevron-left"></i>
+            </a>
+            <input type="text" id="key" class="search-input" autocomplete="off" placeholder="Search">
+            <a href="javascript:;" class="header-icon waves-effect waves-circle waves-light" id="search">
+                <i class="icon icon-lg icon-search"></i>
+            </a>
+        </div>
+        
+        <a href="../../atom.xml" target="_blank" class="header-icon waves-effect waves-circle waves-light" id="Rss">
+            <i class="icon icon-lg icon-rss"></i>
+        </a>
+    </div>
+</header>
+<header class="content-header post-header">
+    
+    
+    <div class="container fade-scale">
+        <div id="myheader">
+            <h1 class="title">
+                
+            </h1>
+            <h5 class="subtitle">
+                
+                
+            </h5>
+        </div>
+    </div>
+
+</header>
+
+
+<div class="container body-wrap">
+    
+<article id="post-handler2" class="post-article article-type-post fade" itemprop="blogPost">
+
+    <div class="post-card">
+        <h1 class="post-card-title">浅析Handler消息机制二</h1>
+        <div class="post-meta">
+            <i class="icon icon-lg icon-calendar-o"></i>
+            发表于
+            <time class="post-time" title="2022-03-21 20:25:54" datetime="2022-03-21T12:25:54.248Z" itemprop="datePublished">2022-03-21</time>
+
+            <br id="mybreak">
+            
+<script>
+	mybreak.style="display:none";
+</script>
+
+
+            <i>·</i>
+            
+<span id="busuanzi_container_page_pv" title="文章总阅读量" style="display:none">
+    <i class="icon icon-eye icon-pr"></i><span id="busuanzi_value_page_pv"></span>次浏览
+</span>
+
+
+        </div>
+        <div class="post-count-custom">
+            <i class="icon icon-lg icon-comment-o"></i>
+            阅读本文可能花费您&nbsp;<span class="post-count">38</span>&nbsp;分钟
+        </div>
+        <div class="post-content" id="post-content" itemprop="postContent">
+            <p>&#x672C;&#x6587;&#x8FDB;&#x4E00;&#x6B65;&#x5206;&#x6790;Handler&#x548C;Looper&#x7684;&#x6E90;&#x7801;<br><a id="more"></a><br>1.Looper<br>&#x4ECE;&#x4E0A;&#x6587;&#x6211;&#x4EEC;&#x5927;&#x6982;&#x4E86;&#x89E3;&#x4E86;ThreadLocal&#x662F;&#x4EC0;&#x4E48;&#xFF0C;&#x800C;Looper&#x4E4B;&#x6240;&#x4EE5;&#x80FD;&#x4FDD;&#x969C;&#x4E00;&#x4E2A;&#x7EBF;&#x7A0B;&#x53EA;&#x80FD;&#x6709;&#x4E00;&#x4E2A;Looper&#xFF0C;&#x4E5F;&#x662F;&#x501F;&#x52A9;ThreadLocal&#x6765;&#x5B9E;&#x73B0;&#x7684;&#x3002;<br>Looper&#x7C7B;&#x5728;&#x52A0;&#x8F7D;&#x65F6;&#x5C31;&#x81EA;&#x52A8;&#x751F;&#x6210;&#x4E00;&#x4E2A;threadLocal&#x5BF9;&#x8C61;&#xFF0C;&#x4E5F;&#x5C31;&#x662F;&#x8BF4;&#x4E00;&#x4E2A;looper&#x5BF9;&#x8C61;&#x5BF9;&#x5E94;&#x4E00;&#x4E2A;threadLocal<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">final</span>&#xA0;ThreadLocal&lt;Looper&gt;&#xA0;sThreadLocal&#xA0;=&#xA0;<span class="keyword">new</span>&#xA0;ThreadLocal&lt;Looper&gt;();</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>Looper.prepare()&#x6E90;&#x7801;&#x5982;&#x4E0B;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">prepare</span><span class="params">(<span class="keyword">boolean</span> quitAllowed)</span> </span>{</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="keyword">if</span> (sThreadLocal.get() != <span class="keyword">null</span>) {</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;<span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(<span class="string">&quot;Only one Looper may be created per thread&quot;</span>);</span><br><span class="line">&#xA0;&#xA0; &#xA0;}</span><br><span class="line">&#xA0;&#xA0; &#xA0;sThreadLocal.set(<span class="keyword">new</span> Looper(quitAllowed));</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>PS:&#x6839;&#x636E;sThreadLocal.set(new Looper(quitAllowed));  &#x5F97;&#x77E5;&#xFF0C;Looper.prepare()&#x5176;&#x5B9E;&#x5C31;&#x662F;&#x5EFA;&#x7ACB;&#x4E86;&#x4E00;&#x4E2A;&#x65B0;&#x7684;looper<br>&#x4ECE;&#x4E0A;&#x9762;&#x5F97;&#x77E5;&#xFF0C;looper.prepare()&#x5148;&#x901A;&#x8FC7;threadLocal.get()&#xFF0C;&#x6E90;&#x7801;&#x5982;&#x4E0B;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> T <span class="title">get</span><span class="params">()</span> </span>{</span><br><span class="line">&#xA0;&#xA0; &#xA0;Thread t = Thread.currentThread();</span><br><span class="line">&#xA0;&#xA0; &#xA0;ThreadLocalMap map = getMap(t);</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="keyword">if</span> (map != <span class="keyword">null</span>) {</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;ThreadLocalMap.Entry e = map.getEntry(<span class="keyword">this</span>);</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;<span class="keyword">if</span> (e != <span class="keyword">null</span>) {</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;<span class="meta">@SuppressWarnings</span>(<span class="string">&quot;unchecked&quot;</span>)</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;T result = (T)e.value;</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;&#xA0; &#xA0;&#xA0;<span class="keyword">return</span> result;</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;}</span><br><span class="line">&#xA0;&#xA0; &#xA0;}&#xA0;&#xA0; &#xA0;</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="keyword">return</span> setInitialValue();</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x5373;&#x901A;&#x8FC7;&#x5F53;&#x524D;&#x7EBF;&#x7A0B;&#x7EF4;&#x62A4;&#x7684;threadLocalMap&#x6765;&#x83B7;&#x53D6;Entry&#xFF0C;&#x5982;&#x679C;&#x80FD;&#x591F;&#x5F97;&#x5230;&#x8FD9;&#x4E2A;Entry&#x5BF9;&#x8C61;&#xFF0C;&#x8BF4;&#x660E;&#x8FD9;&#x4E2A;threadLocal&#x5DF2;&#x7ECF;&#x8D4B;&#x503C;&#x8FC7;&#xFF0C;&#x5373;&#x5DF2;&#x7ECF;&#x7ED9;&#x5F53;&#x524D;&#x7684;threadLocal&#x8D4B;&#x503C;&#x8FC7;looper&#x4E86;&#xFF0C;&#x6240;&#x4EE5;&#x4E0D;&#x80FD;&#x518D;&#x7ED9;&#x7EBF;&#x7A0B;&#x8BBE;&#x7F6E;looper&#x3002;&#x8FD9;&#x4E5F;&#x662F;&#x4E3A;&#x4EC0;&#x4E48;&#x4E00;&#x4E2A;&#x7EBF;&#x7A0B;&#x53EA;&#x6709;&#x4E00;&#x4E2A;looper&#x3002;</p>
+<p>&#x9996;&#x5148;Thread&#x91CC;&#x9762;&#x6709;&#x4E2A;ThreadLocalMap&#x6765;&#x4FDD;&#x8BC1;&#x5F53;&#x524D;&#x7EBF;&#x7A0B;&#x8DDF;ThreadLocal&#x7C7B;&#x578B;&#x7684;&#x503C;&#x4E00;&#x4E00;&#x5BF9;&#x5E94;&#x3002;Looper&#x91CC;&#x9762;&#x6709;&#x4E2A;&#x6CDB;&#x578B;&#x4E3A;Looper&#x7684;ThreadLocal&#x5BF9;&#x8C61;&#xFF0C;&#x5F53;Looper&#x5728;prepare&#x7684;&#x65F6;&#x5019;&#xFF0C;&#x4F1A;&#x5148;&#x4ECE;&#x5F53;&#x524D;&#x7EBF;&#x7A0B;&#x7684;threadLocalMap&#x627E;&#x6709;&#x6CA1;&#x6709;&#x5B58;&#x5728;&#x8FD9;&#x4E2A;ThreadLocal&#x503C;&#xFF0C;&#x5982;&#x679C;&#x6709;&#xFF0C;&#x8BF4;&#x660E;&#x8BE5;&#x7EBF;&#x7A0B;&#x5DF2;&#x7ECF;&#x8D4B;&#x503C;&#x4E86;&#x4E00;&#x4E2A;Looper&#xFF0C;&#x6B64;&#x65F6;&#x4F1A;&#x62A5;&#x9519;&#xFF0C;&#x5982;&#x679C;&#x6CA1;&#x6709;&#x5219;&#x4F1A;&#x628A;&#x5F53;&#x524D;&#x7EBF;&#x7A0B;&#x8DDF;&#x6CDB;&#x578B;Looper&#x7684;ThreadLocal&#x4FDD;&#x5B58;&#x5230;&#x5F53;&#x524D;&#x7EBF;&#x7A0B;&#x7684;ThreadLocalMap&#x91CC;&#x9762;&#x3002;</p>
+<p>&#x518D;&#x770B;&#x4E0A;&#x9762;&#x7684;threadLocal.set()&#x6E90;&#x7801;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">set</span><span class="params">(T value)</span> </span>{</span><br><span class="line">&#xA0; &#xA0; Thread t = Thread.currentThread();</span><br><span class="line">&#xA0;&#xA0; &#xA0;ThreadLocalMap map = getMap(t);</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="keyword">if</span> (map != <span class="keyword">null</span>)</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;map.set(<span class="keyword">this</span>, value);</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="keyword">else</span></span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;createMap(t, value);</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x7528;&#x5230;&#x4E86;set()&#x8BC1;&#x660E;&#x90A3;&#x4E2A;threadLocal&#x8FD8;&#x6CA1;&#x6709;&#x8D4B;&#x503C;&#x8FC7;&#xFF0C;&#x6240;&#x4EE5;&#x9700;&#x8981;&#x5728;&#x5F53;&#x524D;&#x7EBF;&#x7A0B;&#x7684;threadLocalMap&#x4E2D;&#x8D4B;&#x503C;Entry&#xFF0C;&#x5373;&#x5B58;&#x50A8;threadLocal&#x4EE5;&#x53CA;&#x5BF9;&#x5E94;&#x7684;&#x503C;&#x3002;</p>
+<p>&#x7EFC;&#x4E0A;&#xFF0C;looper.prepare()&#x5C31;&#x662F;&#x628A;&#x7EBF;&#x7A0B;&#x8DDF;looper&#x4E00;&#x8D77;&#x7ED1;&#x5B9A;&#x3002;</p>
+<p>&#x5206;&#x6790;looper.loop();&#x6E90;&#x7801;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">final</span> Looper me = myLooper();</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="keyword">if</span> (me == <span class="keyword">null</span>) {</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;<span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(<span class="string">&quot;No Looper; Looper.prepare() wasn&apos;t called on this thread.&quot;</span>);</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x9996;&#x5148;myLooper()&#x662F;&#x901A;&#x8FC7;threadLocal&#x6765;&#x83B7;&#x53D6;&#x5230;looper&#x5BF9;&#x8C61;&#x3002;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">* Return the Looper object associated with the current thread. Returns</span></span><br><span class="line"><span class="comment">* null if the calling thread is not associated with a Looper.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="meta">@Nullable</span> <span class="function">Looper <span class="title">myLooper</span><span class="params">()</span> </span>{</span><br><span class="line"><span class="keyword">return</span> sThreadLocal.get();</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x63A5;&#x7740;&#x83B7;&#x53D6;&#x5230;looper&#x5BF9;&#x5E94;&#x7684;messageQueue&#x3002;&#x5728;looper&#x7684;&#x6784;&#x9020;&#x51FD;&#x6570;&#x4E2D;&#xFF0C;&#x4F1A;&#x65B0;&#x5EFA;&#x4E00;&#x4E2A;messageQueue&#x5BF9;&#x8C61;&#x3002;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">final</span>&#xA0;MessageQueue queue = me.mQueue;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="title">Looper</span><span class="params">(<span class="keyword">boolean</span> quitAllowed)</span> </span>{</span><br><span class="line">&#xA0;&#xA0; &#xA0;mQueue = <span class="keyword">new</span> MessageQueue(quitAllowed);</span><br><span class="line">&#xA0;&#xA0; &#xA0;mThread = Thread.currentThread();</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x7136;&#x540E;&#x6B7B;&#x5FAA;&#x73AF;&#x4E0D;&#x65AD;&#x83B7;&#x53D6;message<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (;;) {</span><br><span class="line">    Message msg = queue.next(); <span class="comment">// &#x4ECE;messagequeue&#x4E2D;&#x83B7;&#x53D6;&#x4E0B;&#x4E00;&#x4E2A;&#x6D88;&#x606F;</span></span><br><span class="line">    <span class="keyword">if</span> (msg == <span class="keyword">null</span>) {</span><br><span class="line">        <span class="comment">// No message indicates that the message queue is quitting.</span></span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    }</span><br><span class="line">    &#x2026;&#x2026;</span><br><span class="line">    <span class="keyword">try</span> {</span><br><span class="line">        <span class="comment">//&#x901A;&#x8FC7;msg.target&#x53BB;&#x5206;&#x53D1;&#x6D88;&#x606F;</span></span><br><span class="line">        <span class="comment">//&#x5267;&#x900F;&#xFF1A;msg.target&#x5C31;&#x662F;handler&#xFF0C;&#x540E;&#x9762;&#x89E3;&#x91CA;</span></span><br><span class="line">        msg.target.dispatchMessage(msg);</span><br><span class="line">    } <span class="keyword">finally</span> {</span><br><span class="line">        <span class="keyword">if</span> (traceTag != <span class="number">0</span>) {</span><br><span class="line">            Trace.traceEnd(traceTag);</span><br><span class="line">        }</span><br><span class="line">    }</span><br><span class="line"></span><br><span class="line">    <span class="comment">//&#x56DE;&#x6536;&#x6D88;&#x606F;&#xFF0C;&#x5212;&#x91CD;&#x70B9;&#xFF0C;&#x540E;&#x9762;&#x518D;&#x89E3;&#x91CA;</span></span><br><span class="line">    msg.recycleUnchecked();</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x4E5F;&#x5C31;&#x662F;&#x8BF4;&#x76F4;&#x5230;messageQueue.next()&#x4E3A;&#x7A7A;&#xFF0C;&#x5373;&#x6CA1;&#x6709;&#x6D88;&#x606F;&#x4E86;&#xFF0C;&#x624D;&#x4F1A;&#x7ED3;&#x675F;&#x6B7B;&#x5FAA;&#x73AF;&#xFF0C;&#x5373;looper.loop()&#x8FD0;&#x884C;&#x7ED3;&#x675F;&#x3002;</p>
+<p>&#xFF12;.handler<br>handler&#x5728;&#x521B;&#x5EFA;&#x4E00;&#x4E2A;&#x65B0;&#x5BF9;&#x8C61;&#x65F6;&#xFF0C;&#x4F1A;&#x627E;&#x5230;&#x5F53;&#x524D;&#x7EBF;&#x7A0B;&#x7684;looper&#x548C;&#x5BF9;&#x5E94;&#x7684;messageQueue&#xFF0C;&#x5982;&#x679C;&#x627E;&#x4E0D;&#x5230;&#xFF0C;&#x5219;&#x4F1A;&#x62A5;&#x9519;&#x8BF4;&#x6CA1;&#x6709;&#x5148;&#x8C03;&#x7528;Looper.prerare()&#x3002;&#x7136;&#x540E;&#x518D;&#x83B7;&#x53D6;&#x5230;&#x5BF9;&#x5E94;&#x7684;looper&#x7684;messageQueue&#x3002;&#x6E90;&#x7801;&#x5982;&#x4E0B;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="title">Handler</span><span class="params">(Callback callback, <span class="keyword">boolean</span> async)</span> </span>{</span><br><span class="line">    &#x2026;&#x2026;</span><br><span class="line">    mLooper = Looper.myLooper();</span><br><span class="line">    <span class="keyword">if</span> (mLooper == <span class="keyword">null</span>) {</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(</span><br><span class="line">                <span class="string">&quot;Can&apos;t create handler inside thread &quot;</span> + Thread.currentThread()</span><br><span class="line">                        + <span class="string">&quot; that has not called Looper.prepare()&quot;</span>);</span><br><span class="line">    }</span><br><span class="line">    mQueue = mLooper.mQueue;</span><br><span class="line">    mCallback = callback;</span><br><span class="line">    mAsynchronous = async;</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>PS&#xFF1A;&#x4E4B;&#x524D;&#x4E00;&#x76F4;&#x53EA;&#x5728;Activity&#x4E2D;&#x5199;Handler handler = new Handler()&#x800C;&#x6CA1;&#x6709;&#x8C03;&#x7528;Looper.prepare()&#x5374;&#x53EF;&#x7528;&#xFF0C;&#x662F;&#x56E0;&#x4E3A;Activity&#x91CC;&#x9762;&#x6709;ActivityThread&#xFF0C;&#x800C;ActivityThread&#x7684;main()&#x91CC;&#x9762;&#x8C03;&#x7528;&#x4E86;Looper.prepareMainLooper(); &#x6240;&#x4EE5;&#x5176;&#x5B9E;Activity&#x7528;&#x7684;&#x5C31;&#x662F;MainLooper&#x4E3B;&#x7EBF;&#x7A0B;&#x3002;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//ActivityThread.java</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> </span>{</span><br><span class="line">    &#x2026;&#x2026;</span><br><span class="line"></span><br><span class="line">    Looper.prepareMainLooper();</span><br><span class="line">    &#x2026;&#x2026;</span><br><span class="line">    <span class="keyword">if</span> (sMainThreadHandler == <span class="keyword">null</span>) {</span><br><span class="line">        sMainThreadHandler = thread.getHandler();</span><br><span class="line">    }</span><br><span class="line"></span><br><span class="line">    Looper.loop();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(<span class="string">&quot;Main thread loop unexpectedly exited&quot;</span>);</span><br><span class="line">}</span><br><span class="line"><span class="comment">//Looper.java</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">prepareMainLooper</span><span class="params">()</span> </span>{</span><br><span class="line">    prepare(<span class="keyword">false</span>);</span><br><span class="line">    <span class="keyword">synchronized</span> (Looper.class) {</span><br><span class="line">        <span class="keyword">if</span> (sMainLooper != <span class="keyword">null</span>) {</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">&quot;The main Looper has already been prepared.&quot;</span>);</span><br><span class="line">        }</span><br><span class="line">        sMainLooper = myLooper();</span><br><span class="line">    }</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x5982;&#x679C;&#x662F;&#x5728;&#x5B50;&#x7EBF;&#x7A0B;&#x4F7F;&#x7528;handler&#xFF0C;&#x5728;&#x5B50;&#x7EBF;&#x7A0B;&#x4E00;&#x5B9A;&#x8981;&#x8C03;&#x7528;Looper.prepare&#x628A;&#x5B50;&#x7EBF;&#x7A0B;&#x548C;looper&#x7ED1;&#x5B9A;&#xFF0C;&#x7136;&#x540E;&#x624D;&#x80FD;&#x65B0;&#x5EFA;&#x4E00;&#x4E2A;handler&#x5BF9;&#x8C61;&#xFF0C;&#x6700;&#x540E;&#x901A;&#x8FC7;looper.loop()&#x6765;&#x5FAA;&#x73AF;&#x6D88;&#x606F;&#x5217;&#x8868;&#x3002;&#x7528;&#x6CD5;&#x793A;&#x4F8B;&#x5982;&#x4E0B;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">new</span> Thread(){</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>{</span><br><span class="line">        Looper.prepare();</span><br><span class="line">        Handler handler = <span class="keyword">new</span> Handler(){</span><br><span class="line">            <span class="meta">@Override</span></span><br><span class="line">            <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handleMessage</span><span class="params">(@NonNull Message msg)</span> </span>{</span><br><span class="line">                <span class="comment">//todo</span></span><br><span class="line">            }</span><br><span class="line">        };</span><br><span class="line">        handler.sendEmptyMessage(MSG_SEND);</span><br><span class="line">        Looper.loop();</span><br><span class="line">    }</span><br><span class="line">};</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x901A;&#x8FC7;Handler&#x5982;&#x4F55;&#x5B9E;&#x73B0;&#x7EBF;&#x7A0B;&#x7684;&#x5207;&#x6362;&#xFF1F;<br>&#x6BD4;&#x5982;&#x8981;&#x5728;&#x5B50;&#x7EBF;&#x7A0B;&#x4E2D;&#x66F4;&#x65B0;UI&#x7684;&#x8BDD;&#xFF0C;&#x53EA;&#x80FD;&#x62FF;&#x4E3B;&#x7EBF;&#x7A0B;&#x7684;looper&#x6765;&#x6784;&#x5EFA;handler&#x5E76;&#x505A;&#x76F8;&#x5E94;&#x7684;&#x64CD;&#x4F5C;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">handler_main = <span class="keyword">new</span> Handler(Looper.getMainLooper()){</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handleMessage</span><span class="params">(Message msg)</span> </span>{</span><br><span class="line">  helloTextView.setText(<span class="string">&quot;getMainLooper&quot;</span>);</span><br><span class="line">  }</span><br><span class="line">};</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x4E00;&#x5207;&#x4FE1;&#x606F;&#x5206;&#x53D1;&#x4ECE;handler.sendMessage&#x6216;&#x8005;handler.post&#x5F00;&#x59CB;&#x3002;&#x800C;&#x4E00;&#x5207;&#x53EF;&#x8FFD;&#x8E2A;&#x81F3;handler.sendMessageAtTime()<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">sendMessageAtTime</span><span class="params">(Message msg, <span class="keyword">long</span> uptimeMillis)</span> </span>{</span><br><span class="line">    MessageQueue queue = mQueue;</span><br><span class="line">    <span class="keyword">if</span> (queue == <span class="keyword">null</span>) {</span><br><span class="line">        RuntimeException e = <span class="keyword">new</span> RuntimeException(</span><br><span class="line">                <span class="keyword">this</span> + <span class="string">&quot; sendMessageAtTime() called with no mQueue&quot;</span>);</span><br><span class="line">        Log.w(<span class="string">&quot;Looper&quot;</span>, e.getMessage(), e);</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">    }</span><br><span class="line">    <span class="keyword">return</span> enqueueMessage(queue, msg, uptimeMillis);</span><br><span class="line">}</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">boolean</span> <span class="title">enqueueMessage</span><span class="params">(MessageQueue queue, Message msg, <span class="keyword">long</span> uptimeMillis)</span> </span>{</span><br><span class="line">    msg.target = <span class="keyword">this</span>;</span><br><span class="line">    <span class="comment">// &#x662F;&#x5426;&#x662F;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#x3002;&#x5212;&#x91CD;&#x70B9;&#xFF0C;&#x540E;&#x9762;&#x89E3;&#x91CA;</span></span><br><span class="line">    <span class="keyword">if</span> (mAsynchronous) {</span><br><span class="line">        msg.setAsynchronous(<span class="keyword">true</span>);</span><br><span class="line">    }</span><br><span class="line">    <span class="keyword">return</span> queue.enqueueMessage(msg, uptimeMillis);</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x524D;&#x9762;&#x5728;&#x5206;&#x6790;looper&#x65F6;&#xFF0C;&#x770B;&#x5230;&#x662F;&#x7531;msg.target&#x53BB;&#x5206;&#x53D1;&#x6D88;&#x606F;&#xFF0C;&#x800C;&#x5728;&#x4E0A;&#x9762;&#x7684;&#x4EE3;&#x7801;&#x4E5F;&#x53EF;&#x4EE5;&#x770B;&#x5230;msg.target&#x5176;&#x5B9E;&#x5C31;&#x662F;Handler&#xFF0C;&#x6240;&#x4EE5;&#x5728;&#x6D88;&#x606F;&#x5206;&#x53D1;&#x5904;&#x7406;&#x5C31;&#x8DF3;&#x5230;&#x4E86;&#x5F53;&#x524D;&#x7684;handler&#x3002;</p>
+<p>&#x5148;&#x770B;&#x5206;&#x53D1;&#x6D88;&#x606F;&#x90E8;&#x5206;&#xFF0C;&#x628A;&#x5927;&#x6982;&#x6D41;&#x7A0B;&#x7406;&#x4E00;&#x904D;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">dispatchMessage</span><span class="params">(Message msg)</span> </span>{</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="keyword">if</span> (msg.callback != <span class="keyword">null</span>) {</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0; &#xA0;&#xA0;handleCallback(msg);</span><br><span class="line">&#xA0;&#xA0; &#xA0;} <span class="keyword">else</span> {</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;<span class="keyword">if</span> (mCallback != <span class="keyword">null</span>) {</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;&#xA0; &#xA0;&#xA0;<span class="keyword">if</span> (mCallback.handleMessage(msg)) {</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;&#xA0;&#xA0;&#xA0;&#xA0; &#xA0; &#xA0;<span class="keyword">return</span>;</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;&#xA0; &#xA0;&#xA0;}</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0; &#xA0;&#xA0;}</span><br><span class="line">&#xA0;&#xA0;&#xA0; &#xA0;&#xA0; &#xA0;handleMessage(msg);</span><br><span class="line">&#xA0;&#xA0; &#xA0;}</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x5728;dispatchMessage&#x8FD9;&#x91CC;&#x6D89;&#x53CA;&#x5230;&#x4E09;&#x79CD;&#x5904;&#x7406;&#x6D88;&#x606F;&#x7684;&#x65B9;&#x6CD5;<br>&#x2460;msg.callback&#x4E0D;&#x4E3A;&#x7A7A;&#x65F6;&#xFF0C;&#x6839;&#x636E;msg.callback&#x53BB;&#x5904;&#x7406;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">handleCallback</span><span class="params">(Message message)</span> </span>{</span><br><span class="line">&#xA0;&#xA0; &#xA0;message.callback.run();</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x800C;msg.callback&#x4E00;&#x822C;&#x662F;&#x901A;&#x8FC7;Hanlder&#x7684;postXXX(Runnable r)&#x4F20;&#x5165;&#x7684;runnable&#x5BF9;&#x8C61;&#x6765;&#x5904;&#x7406;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">boolean</span> <span class="title">postDelayed</span><span class="params">(Runnable r, <span class="keyword">long</span> delayMillis)</span></span></span><br><span class="line"><span class="function"></span>{</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="keyword">return</span> sendMessageDelayed(getPostMessage(r), delayMillis);</span><br><span class="line">}</span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> Message <span class="title">getPostMessage</span><span class="params">(Runnable r)</span> </span>{</span><br><span class="line">&#xA0;&#xA0; &#xA0;Message m = Message.obtain();</span><br><span class="line">&#xA0;&#xA0; &#xA0;m.callback = r;</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="keyword">return</span> m;</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x2461;mCallback&#x4E0D;&#x4E3A;&#x7A7A;&#x65F6;&#xFF0C;&#x5C31;&#x901A;&#x8FC7;mCallback&#x7684;handleMessage&#xFF08;&#xFF09;<br>Handler&#x5185;&#x90E8;&#x6709;&#x4E00;&#x4E2A;callback&#xFF0C;&#x53EF;&#x4EE5;&#x901A;&#x8FC7;&#x8FD9;&#x4E2A;callback&#x6765;&#x5904;&#x7406;&#x6D88;&#x606F;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Callback</span> </span>{</span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">* <span class="doctag">@param</span> msg A {<span class="doctag">@link</span> android.os.Message Message} object</span></span><br><span class="line"><span class="comment">* <span class="doctag">@return</span> True if no further handling is desired</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">handleMessage</span><span class="params">(Message msg)</span></span>;</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x8FD9;&#x4E2A;callback&#x53EF;&#x4EE5;&#x5728;&#x6784;&#x9020;handler&#x65F6;&#x4F20;&#x5165;&#xFF0C;&#x5176;&#x4F7F;&#x7528;&#x65B9;&#x6CD5;&#x5927;&#x6982;&#x5982;&#x4E0B;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Handler handler = <span class="keyword">new</span> Handler(<span class="keyword">new</span> Handler.Callback() {</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="meta">@Override</span></span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">handleMessage</span><span class="params">(Message msg)</span> </span>{</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;<span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">&#xA0;&#xA0; &#xA0;}</span><br><span class="line">});</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x2462;&#x5982;&#x679C;msg&#x6CA1;&#x6709;callback&#x5E76;&#x4E14;handler&#x4E5F;&#x6CA1;&#x6709;callback&#xFF0C;&#x90A3;&#x5C31;&#x7528;handler&#x81EA;&#x5DF1;&#x7684;handleMessage()&#x65B9;&#x6CD5;&#x53BB;&#x5904;&#x7406;&#x6D88;&#x606F;&#x3002;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">* Subclasses must implement this to receive messages.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handleMessage</span><span class="params">(Message msg)</span> </span>{</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x5176;&#x4F7F;&#x7528;&#x65B9;&#x6CD5;&#x5982;&#x4E0B;&#xFF0C;&#x4E5F;&#x5C31;&#x662F;&#x4E00;&#x822C;&#x7684;&#x4F7F;&#x7528;&#x65B9;&#x6CD5;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Handler handler = <span class="keyword">new</span> Handler(){</span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="meta">@Override</span></span><br><span class="line">&#xA0;&#xA0; &#xA0;<span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handleMessage</span><span class="params">(Message msg)</span> </span>{</span><br><span class="line">&#xA0;&#xA0; &#xA0;&#xA0;&#xA0; &#xA0;<span class="keyword">super</span>.handleMessage(msg);</span><br><span class="line">&#xA0;&#xA0; &#xA0;}</span><br><span class="line">};</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>Handler&#x7684;post&#x4E0E;sendMessage&#x7684;&#x533A;&#x522B;&#xFF1A;<br>&#x7531;&#x4E0A;&#x53EF;&#x77E5;&#xFF0C;post&#x91CC;&#x9762;&#x6709;&#x4E2A;runnable&#xFF0C;&#x6240;&#x4EE5;&#x6D88;&#x606F;&#x6700;&#x540E;&#x662F;&#x5728;post&#x91CC;&#x9762;&#x7684;runnable&#x6267;&#x884C;&#x3002;send&#x7684;&#x8BDD;&#x6700;&#x540E;&#x662F;&#x6839;&#x636E;handler&#x7684;callback&#x6216;&#x8005;handleMessage&#x53BB;&#x6267;&#x884C;&#x3002;<br>ps&#xFF1A;message.callback.run();&#x770B;&#x4F3C;&#x662F;&#x5728;&#x65B0;&#x7684;&#x5B50;&#x7EBF;&#x7A0B;&#x4E2D;&#x6267;&#x884C;&#xFF0C;&#x4F46;&#x662F;&#x76F4;&#x63A5;&#x8C03;&#x7528;&#x7EBF;&#x7A0B;&#x7684;run&#x65B9;&#x6CD5;&#x76F8;&#x5F53;&#x4E8E;&#x662F;&#x5728;&#x4E00;&#x4E2A;&#x666E;&#x901A;&#x7684;&#x7C7B;&#x8C03;&#x7528;&#x65B9;&#x6CD5;&#xFF0C;&#x8FD8;&#x662F;&#x5728;&#x5F53;&#x524D;&#x7EBF;&#x7A0B;&#x6267;&#x884C;&#xFF0C;&#x5E76;&#x4E0D;&#x4F1A;&#x5F00;&#x542F;&#x65B0;&#x7684;&#x7EBF;&#x7A0B;&#x3002;<br>&#x6700;&#x7EC8;&#x603B;&#x7ED3;&#xFF1A;</p>
+<ol>
+<li>post&#x548C;sendMessage&#x672C;&#x8D28;&#x4E0A;&#x662F;&#x6CA1;&#x6709;&#x533A;&#x522B;&#x7684;&#xFF0C;&#x53EA;&#x662F;&#x5B9E;&#x9645;&#x7528;&#x6CD5;&#x4E2D;&#x6709;&#x4E00;&#x70B9;&#x5DEE;&#x522B;</li>
+<li>post&#x4E5F;&#x6CA1;&#x6709;&#x72EC;&#x7279;&#x7684;&#x4F5C;&#x7528;&#xFF0C;post&#x672C;&#x8D28;&#x4E0A;&#x8FD8;&#x662F;&#x7528;sendMessage&#x5B9E;&#x73B0;&#x7684;&#xFF0C;post&#x53EA;&#x662F;&#x4E00;&#x4E2D;&#x66F4;&#x65B9;&#x4FBF;&#x7684;&#x7528;&#x6CD5;&#x800C;&#x5DF2;&#x3002;post&#x6BD4;send&#x7684;&#x65B9;&#x4FBF;&#x5728;&#x4E8E;post&#x4E0D;&#x7528;&#x53BB;&#x5224;&#x65AD;msg&#x7684;&#x7C7B;&#x522B;&#xFF0C;&#x76F4;&#x63A5;&#x5904;&#x7406;&#x3002;</li>
+</ol>
+<p>ok,&#x518D;&#x770B;&#x56DE;&#x521A;&#x521A;&#x7684;enqueueMessage&#x65B9;&#x6CD5;&#xFF0C;&#x53D1;&#x73B0;&#x6700;&#x540E;&#x662F;queue.enqueueMessage&#xFF0C;&#x4E8E;&#x662F;&#x53C8;&#x56DE;&#x5230;&#x4E86;MessageQueue&#x90A3;&#x91CC;&#x3002;<br>PS&#xFF1A;MessageQueue&#x662F;&#x4E00;&#x4E2A;&#x5355;&#x94FE;&#x8868;&#x7684;&#x6570;&#x636E;&#x7ED3;&#x6784;&#xFF0C;&#x63D0;&#x4F9B;&#x4E86;&#x4E00;&#x4E2A;next()&#x65B9;&#x6CD5;&#x83B7;&#x53D6;&#x4E0B;&#x4E00;&#x4E2A;&#x6D88;&#x606F;<br>&#x65E2;&#x7136;&#x662F;&#x94FE;&#x8868;&#x7ED3;&#x6784;&#xFF0C;&#x90A3;&#x4E48;&#x5728;&#x5165;&#x961F;&#x65F6;&#x662F;&#x5426;&#x6709;&#x4EC0;&#x4E48;&#x89C4;&#x5F8B;&#x5462;&#xFF1F;<br>&#x7B54;&#x6848;&#x662F;&#xFF1A;&#x6709;&#xFF01;&#x800C;&#x4E14;&#x662F;&#x6309;&#x7167;&#x65F6;&#x95F4;&#x987A;&#x5E8F;&#x7684;&#x3002;<br>&#x6240;&#x4EE5;&#x5982;&#x679C;&#x5F53;&#x6211;&#x4EEC;&#x8C03;&#x7528;postDelay&#x65B9;&#x6CD5;&#x65F6;&#xFF0C;&#x4E5F;&#x662F;&#x56E0;&#x4E3A;&#x6309;&#x65F6;&#x95F4;&#x987A;&#x5E8F;&#x5165;&#x961F;&#x5217;&#xFF0C;&#x53EF;&#x4EE5;&#x8BA9;&#x6D88;&#x606F;&#x665A;&#x70B9;&#x5904;&#x7406;&#x3002;<br>&#x770B;&#x4E00;&#x4E0B;enqueueMessage&#x7684;&#x65B9;&#x6CD5;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">boolean</span> <span class="title">enqueueMessage</span><span class="params">(Message msg, <span class="keyword">long</span> when)</span> </span>{</span><br><span class="line">    <span class="keyword">if</span> (msg.target == <span class="keyword">null</span>) {</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;Message must have a target.&quot;</span>);</span><br><span class="line">    }</span><br><span class="line">    <span class="comment">//PS&#xFF1A;&#x5982;&#x4F55;&#x4FDD;&#x8BC1;&#x961F;&#x5217;&#x4E0D;&#x6DF7;&#x4E71;&#xFF08;&#x5982;&#x4F55;&#x4FDD;&#x8BC1;&#x7EBF;&#x7A0B;&#x5B89;&#x5168;&#xFF09;&#xFF1F;</span></span><br><span class="line">    <span class="comment">//&#x901A;&#x8FC7;synchronized&#x6765;&#x4FDD;&#x8BC1;&#x4E86;&#x7EBF;&#x7A0B;&#x7684;&#x5B89;&#x5168;&#x6027;&#x3002;</span></span><br><span class="line">    <span class="keyword">synchronized</span> (<span class="keyword">this</span>) {</span><br><span class="line">        <span class="keyword">if</span> (msg.isInUse()) {</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(msg + <span class="string">&quot; This message is already in use.&quot;</span>);</span><br><span class="line">        }</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (mQuitting) {</span><br><span class="line">            IllegalStateException e = <span class="keyword">new</span> IllegalStateException(</span><br><span class="line">                    msg.target + <span class="string">&quot; sending message to a Handler on a dead thread&quot;</span>);</span><br><span class="line">            Log.w(TAG, e.getMessage(), e);</span><br><span class="line">            msg.recycle();</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">        }</span><br><span class="line"></span><br><span class="line">        msg.markInUse();</span><br><span class="line">        msg.when = when;</span><br><span class="line">        Message p = mMessages;</span><br><span class="line">        <span class="keyword">boolean</span> needWake;</span><br><span class="line">        <span class="comment">//&#x4ECE;&#x8FD9;&#x91CC;&#x5F00;&#x59CB;</span></span><br><span class="line">        <span class="keyword">if</span> (p == <span class="keyword">null</span> || when == <span class="number">0</span> || when &lt; p.when) {</span><br><span class="line">            <span class="comment">// messageQueue&#x4E3A;&#x7A7A;&#xFF0C;&#x6216;&#x8005;&#x89E6;&#x53D1;&#x4E8B;&#x4EF6;&#x6700;&#x65E9;.</span></span><br><span class="line">            msg.next = p;</span><br><span class="line">            mMessages = msg;</span><br><span class="line">            needWake = mBlocked;</span><br><span class="line">        } <span class="keyword">else</span> {</span><br><span class="line">            <span class="comment">// Inserted within the middle of the queue.  Usually we don&apos;t have to wake</span></span><br><span class="line">            <span class="comment">// up the event queue unless there is a barrier at the head of the queue</span></span><br><span class="line">            <span class="comment">// and the message is the earliest asynchronous message in the queue.</span></span><br><span class="line">            <span class="comment">// &#x6362;&#x53E5;&#x8BDD;&#x8BF4;&#xFF0C;&#x8FD9;&#x91CC;&#x662F;&#x904D;&#x5386;queue&#x7136;&#x540E;&#x6309;&#x65F6;&#x95F4;&#x987A;&#x5E8F;&#x6392;&#x5217;</span></span><br><span class="line">            needWake = mBlocked &amp;&amp; p.target == <span class="keyword">null</span> &amp;&amp; msg.isAsynchronous();</span><br><span class="line">            Message prev;</span><br><span class="line">            <span class="keyword">for</span> (; ; ) {</span><br><span class="line">                prev = p;</span><br><span class="line">                p = p.next;</span><br><span class="line">                <span class="keyword">if</span> (p == <span class="keyword">null</span> || when &lt; p.when) {</span><br><span class="line">                    <span class="keyword">break</span>;</span><br><span class="line">                }</span><br><span class="line">                <span class="keyword">if</span> (needWake &amp;&amp; p.isAsynchronous()) {</span><br><span class="line">                    needWake = <span class="keyword">false</span>;</span><br><span class="line">                }</span><br><span class="line">            }</span><br><span class="line">            msg.next = p; <span class="comment">// invariant: p == prev.next</span></span><br><span class="line">            prev.next = msg;</span><br><span class="line">        }</span><br><span class="line"></span><br><span class="line">        <span class="comment">// We can assume mPtr != 0 because mQuitting is false.</span></span><br><span class="line">        <span class="keyword">if</span> (needWake) {</span><br><span class="line">            nativeWake(mPtr);</span><br><span class="line">        }</span><br><span class="line">    }</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x4ECE;&#x4E4B;&#x524D;&#x7684;loop&#x53EF;&#x4EE5;&#x770B;&#x5230;&#x4F1A;&#x6B7B;&#x5FAA;&#x73AF;&#x8D70;queue.next&#x65B9;&#x6CD5;&#xFF0C;&#x73B0;&#x5728;&#x770B;&#x4E00;&#x4E0B;next&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Message <span class="title">next</span><span class="params">()</span> </span>{</span><br><span class="line">    <span class="comment">// Return here if the message loop has already quit and been disposed.</span></span><br><span class="line">    <span class="comment">// This can happen if the application tries to restart a looper after quit</span></span><br><span class="line">    <span class="comment">// which is not supported.</span></span><br><span class="line">    <span class="keyword">final</span> <span class="keyword">long</span> ptr = mPtr;</span><br><span class="line">    <span class="keyword">if</span> (ptr == <span class="number">0</span>) {</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">null</span>;</span><br><span class="line">    }</span><br><span class="line"></span><br><span class="line">    <span class="keyword">int</span> pendingIdleHandlerCount = -<span class="number">1</span>; <span class="comment">// -1 only during first iteration</span></span><br><span class="line">    <span class="keyword">int</span> nextPollTimeoutMillis = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (;;) {</span><br><span class="line">        <span class="keyword">if</span> (nextPollTimeoutMillis != <span class="number">0</span>) {</span><br><span class="line">            Binder.flushPendingCommands();</span><br><span class="line">        }</span><br><span class="line">        <span class="comment">// &#x963B;&#x585E;nextPollTimeoutMillis&#x8FD9;&#x4E48;&#x957F;&#x7684;&#x65F6;&#x95F4;</span></span><br><span class="line">        <span class="comment">// &#x8BE5;&#x65B9;&#x6CD5;&#x5C06;&#x8C03;&#x7528;&#xA0;native void nativePollOnce(long, int), &#x8BE5;&#x65B9;&#x6CD5;&#x5C06;&#x4E00;&#x76F4;&#x963B;&#x585E;&#x76F4;&#x5230;&#x6DFB;&#x52A0;&#x65B0;&#x6D88;&#x606F;&#x4E3A;&#x6B62;.</span></span><br><span class="line">        <span class="comment">// &#x5F53;&#x5C06;&#xA0;Message&#xA0;&#x6DFB;&#x52A0;&#x5230;&#x961F;&#x5217;&#x65F6;, &#x6846;&#x67B6;&#x8C03;&#x7528;&#xA0;enqueueMessage&#xA0;&#x65B9;&#x6CD5;, &#x8BE5;&#x65B9;&#x6CD5;&#x4E0D;&#x4EC5;&#x5C06;&#x6D88;&#x606F;&#x63D2;&#x5165;&#x961F;&#x5217;,</span></span><br><span class="line">        <span class="comment">// &#x800C;&#x4E14;&#x8FD8;&#x4F1A;&#x8C03;&#x7528;native static void nativeWake(long)&#x5524;&#x9192;</span></span><br><span class="line">        nativePollOnce(ptr, nextPollTimeoutMillis);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">synchronized</span> (<span class="keyword">this</span>) {</span><br><span class="line">            <span class="comment">// Try to retrieve the next message.  Return if found.</span></span><br><span class="line">            <span class="keyword">final</span> <span class="keyword">long</span> now = SystemClock.uptimeMillis();</span><br><span class="line">            Message prevMsg = <span class="keyword">null</span>;</span><br><span class="line">            Message msg = mMessages;</span><br><span class="line">            <span class="keyword">if</span> (msg != <span class="keyword">null</span> &amp;&amp; msg.target == <span class="keyword">null</span>) {</span><br><span class="line">                <span class="comment">// Stalled by a barrier.  Find the next asynchronous message in the queue.</span></span><br><span class="line">                <span class="keyword">do</span> {</span><br><span class="line">                    prevMsg = msg;</span><br><span class="line">                    msg = msg.next;</span><br><span class="line">                } <span class="keyword">while</span> (msg != <span class="keyword">null</span> &amp;&amp; !msg.isAsynchronous());</span><br><span class="line">            }</span><br><span class="line">            <span class="keyword">if</span> (msg != <span class="keyword">null</span>) {</span><br><span class="line">                <span class="keyword">if</span> (now &lt; msg.when) {</span><br><span class="line">                    <span class="comment">// Next message is not ready.  </span></span><br><span class="line">                    <span class="comment">// Set a timeout to wake up when it is ready.</span></span><br><span class="line">                    <span class="comment">// &#x5982;&#x679C;&#x65F6;&#x95F4;&#x8FD8;&#x672A;&#x5230;&#xFF0C;&#x5219;&#x8BBE;&#x7F6E;&#x4E0B;&#x4E00;&#x4E2A;&#x6D88;&#x606F;&#x9700;&#x8981;&#x7B49;&#x5F85;&#x7684;&#x65F6;&#x95F4;</span></span><br><span class="line">                    nextPollTimeoutMillis = (<span class="keyword">int</span>) Math.min(msg.when - now, Integer.MAX_VALUE);</span><br><span class="line">                } <span class="keyword">else</span> {</span><br><span class="line">                    <span class="comment">// Got a message.</span></span><br><span class="line">                    mBlocked = <span class="keyword">false</span>;</span><br><span class="line">                    <span class="keyword">if</span> (prevMsg != <span class="keyword">null</span>) {</span><br><span class="line">                        prevMsg.next = msg.next;</span><br><span class="line">                    } <span class="keyword">else</span> {</span><br><span class="line">                        mMessages = msg.next;</span><br><span class="line">                    }</span><br><span class="line">                    msg.next = <span class="keyword">null</span>;</span><br><span class="line">                    <span class="keyword">if</span> (DEBUG) Log.v(TAG, <span class="string">&quot;Returning message: &quot;</span> + msg);</span><br><span class="line">                    msg.markInUse();</span><br><span class="line">                    <span class="keyword">return</span> msg;</span><br><span class="line">                }</span><br><span class="line">            } <span class="keyword">else</span> {</span><br><span class="line">                <span class="comment">// No more messages.</span></span><br><span class="line">                nextPollTimeoutMillis = -<span class="number">1</span>;</span><br><span class="line">            }</span><br><span class="line">    &#x2026;&#x2026;</span><br><span class="line">    }</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x4E5F;&#x5C31;&#x662F;&#x8BF4;&#xFF0C;&#x6D88;&#x606F;&#x7684;&#x5B9A;&#x65F6;&#x53D1;&#x9001;&#x7684;&#x539F;&#x7406;&#x662F;&#xFF0C;&#x5EF6;&#x8FDF;&#x5904;&#x7406;&#x67D0;&#x4E2A;&#x6D88;&#x606F;&#x800C;&#x5DF2;&#x3002;&#x963B;&#x585E;&#x4E00;&#x5B9A;&#x7684;&#x65F6;&#x95F4;&#x540E;&#x518D;&#x5904;&#x7406;&#x8BE5;&#x6D88;&#x606F;<br>nextPollTimeoutMillis&#x5982;&#x679C;&#x4E3A;-1&#xFF0C;&#x5219;&#x8868;&#x793A;&#x65E0;&#x9650;&#x7B49;&#x5F85;&#xFF0C;&#x76F4;&#x5230;&#x88AB;&#x5524;&#x9192;&#x4E3A;&#x6B62;&#x3002;&#x5982;&#x679C;&#x503C;&#x4E3A;0&#xFF0C;&#x5219;&#x65E0;&#x9700;&#x7B49;&#x5F85;&#x7ACB;&#x5373;&#x8FD4;&#x56DE;&#x3002;<br>&#x603B;&#x800C;&#x8A00;&#x4E4B;&#xFF0C;&#x6D88;&#x606F;&#x5FAA;&#x73AF;&#x65F6;&#xFF0C;&#x4F1A;&#x5224;&#x65AD;&#x662F;&#x5426;&#x6709;&#x6D88;&#x606F;&#xFF0C;&#x6CA1;&#x6709;&#x6D88;&#x606F;&#x5C31;&#x628A;nextPollTimeoutMilis&#x8BBE;&#x7F6E;&#x4E3A;-1&#xFF0C;&#x8FDB;&#x5165;&#x4F11;&#x7720;&#xFF0C;&#x76F4;&#x5230;&#x88AB;&#x5524;&#x9192;&#x3002;<br>&#x90A3;MessageQueue#next &#x5728;&#x6CA1;&#x6709;&#x6D88;&#x606F;&#x963B;&#x585E;&#x7684;&#x65F6;&#x5019;&#xFF0C;&#x5982;&#x4F55;&#x6062;&#x590D;&#xFF1F;</p>
+<ul><br>nativePollOnce&#x5728;&#x5F53;&#x524D;&#x6CA1;&#x6709;&#x6D88;&#x606F;&#x8981;&#x5206;&#x53D1;&#x5904;&#x7406;&#x7684;&#x65F6;&#x5019;&#xFF0C;&#x963B;&#x585E;&#x7EBF;&#x7A0B;&#xFF0C;&#x4EE5;&#x4E0B;&#x4E09;&#x79CD;&#x60C5;&#x5F62;&#x4F1A;&#x5524;&#x9192;&#x7EBF;&#x7A0B;&#xFF1A;<br><li>&#x65B9;&#x6CD5;&#x5185;&#x90E8;&#x51FA;&#x73B0;&#x5F02;&#x5E38;&#x548C;&#x9519;&#x8BEF;</li><br><li>&#x8D85;&#x65F6;&#x4E86;&#xFF0C;&#x5373;&#x5EF6;&#x65F6;&#x6D88;&#x606F;&#x7684;&#x89E6;&#x53D1;&#x65F6;&#x95F4;&#x5230;&#x4E86;</li><br><li>&#x6709;&#x65B0;&#x7684;&#x6D88;&#x606F;&#x63D2;&#x5165;&#x6D88;&#x606F;&#x961F;&#x5217;<b>&#xFF08;&#x63D2;&#x5165;&#x540C;&#x6B65;&#x6216;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#xFF0C;&#x540C;&#x6B65;&#x5C4F;&#x969C;&#x9664;&#x5916;&#xFF09;</b></li></ul>
+
+<p>&#xFF13;.&#x4EC0;&#x4E48;&#x662F;&#x540C;&#x6B65;&#x6D88;&#x606F;&#x3001;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#x3001;&#x6D88;&#x606F;&#x5C4F;&#x969C;<br>&#x5728;handler&#x7684;enqueueMessage&#x65F6;&#xFF0C;&#x6211;&#x4EEC;&#x770B;&#x5230;&#x6709;&#x4E2A;&#x6807;&#x8BB0;&#x662F;&#x5426;&#x662F;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#xFF0C;&#x7136;&#x540E;msg.setAsynchronous(true);<br>&#x5F02;&#x6B65;&#x6D88;&#x606F;&#x662F;&#x4E0D;&#x80FD;&#x4F7F;&#x7528;&#x7684;&#xFF0C;&#x56E0;&#x4E3A;&#x76F8;&#x5173;&#x8BBE;&#x7F6E;&#x90FD;&#x662F;hide&#x3002;&#x6240;&#x4EE5;&#x6B63;&#x5E38;&#x60C5;&#x51B5;&#x4E0B;&#x6211;&#x4EEC;&#x53D1;&#x9001;&#x7684;&#x6D88;&#x606F;&#x90FD;&#x662F;&#x540C;&#x6B65;&#x6D88;&#x606F;&#x3002;<br>&#x6D88;&#x606F;&#x5C4F;&#x969C;&#x4E5F;&#x662F;&#x4E00;&#x79CD;&#x6D88;&#x606F;&#xFF0C;&#x4F46;&#x5B83;&#x662F;&#x6CA1;&#x6709;target&#x7684;&#xFF0C;&#x4E5F;&#x5C31;&#x662F;&#x6CA1;&#x6709;&#x5BF9;&#x5E94;&#x7684;handler&#x3002;&#x5B83;&#x7684;&#x4F5C;&#x7528;&#x5C31;&#x662F;&#x963B;&#x585E;&#x540C;&#x6B65;&#x6D88;&#x606F;&#xFF0C;&#x4F18;&#x5148;&#x5904;&#x7406;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#x3002;<br>&#x5F02;&#x6B65;&#x6D88;&#x606F;&#x5728;Android&#x7CFB;&#x7EDF;&#x7684;&#x4F7F;&#x7528;&#x662F;&#x7528;&#x6765;&#x66F4;&#x65B0;Ui&#x7684;&#x3002;&#x4E3A;&#x4E86;&#x8BA9;View&#x80FD;&#x591F;&#x6709;&#x5FEB;&#x901F;&#x7684;&#x5E03;&#x5C40;&#x548C;&#x7ED8;&#x5236;&#xFF0C;&#x63D2;&#x5165;&#x4E00;&#x4E2A;&#x540C;&#x6B65;&#x5C4F;&#x969C;&#x540E;&#xFF0C;&#x540C;&#x6B65;&#x6D88;&#x606F;&#x5168;&#x90FD;&#x963B;&#x585E;&#x4F4F;&#x65E0;&#x6CD5;&#x6267;&#x884C;&#xFF0C;&#x53EA;&#x80FD;&#x6267;&#x884C;&#x66F4;&#x65B0;ui&#x7684;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#xFF0C;&#x4EE5;&#x514D;&#x5F71;&#x54CD;&#x5230;ui&#x7ED8;&#x5236;&#x3002;<br>&#x5728;&#x53D1;&#x9001;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#x7684;&#x65F6;&#x5019;&#x5411;&#x6D88;&#x606F;&#x961F;&#x5217;&#x6295;&#x653E;&#x540C;&#x6B65;&#x5C4F;&#x969C;&#x5BF9;&#x8C61;&#xFF0C;&#x6D88;&#x606F;&#x961F;&#x5217;&#x4F1A;&#x8FD4;&#x56DE;&#x540C;&#x6B65;&#x5C4F;&#x969C;&#x7684;token&#xFF0C;&#x6B64;&#x65F6;&#x6D88;&#x606F;&#x961F;&#x5217;&#x4E2D;&#x7684;&#x540C;&#x6B65;&#x6D88;&#x606F;&#x90FD;&#x4F1A;&#x88AB;&#x6682;&#x505C;&#x5904;&#x7406;&#xFF0C;&#x4F18;&#x5148;&#x6267;&#x884C;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#x5904;&#x7406;&#xFF0C;&#x7B49;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#x5904;&#x7406;&#x5B8C;&#x6210;&#x518D;&#x901A;&#x8FC7;&#x6D88;&#x606F;&#x961F;&#x5217;&#x79FB;&#x9664;token&#x5BF9;&#x5E94;&#x7684;&#x540C;&#x6B65;&#x5C4F;&#x969C;&#xFF0C;&#x6D88;&#x606F;&#x961F;&#x5217;&#x7EE7;&#x7EED;&#x4E4B;&#x524D;&#x6682;&#x505C;&#x7684;&#x540C;&#x6B65;&#x6D88;&#x606F;&#x5904;&#x7406;&#x3002;</p>
+<p>&#x5C4F;&#x969C;&#x6D88;&#x606F;(&#x540C;&#x6B65;&#x5C4F;&#x969C;&#x6709;&#x4EE5;&#x4E0B;&#x7279;&#x5F81;)&#xFF1A;<br>&#x2460;&#x6CA1;&#x6709;&#x7ED9;target&#x8D4B;&#x503C;&#xFF0C;&#x5373;&#x4E0D;&#x7528;handler&#x5206;&#x53D1;&#x5904;&#x7406;&#xFF0C;&#x540E;&#x7EED;&#x4E5F;&#x4F1A;&#x6839;&#x636E;target&#x662F;&#x5426;&#x4E3A;&#x7A7A;&#x6765;&#x5224;&#x65AD;&#x6D88;&#x606F;&#x662F;&#x5426;&#x4E3A;&#x6D88;&#x606F;&#x5C4F;&#x969C;<br>&#x2461;&#x6D88;&#x606F;&#x961F;&#x5217;&#x4E2D;&#x53EF;&#x4EE5;&#x63D2;&#x5165;&#x591A;&#x4E2A;&#x6D88;&#x606F;&#x5C4F;&#x969C;<br>&#x2462;&#x6D88;&#x606F;&#x5C4F;&#x969C;&#x4E5F;&#x662F;&#x53EF;&#x4EE5;&#x6709;&#x65F6;&#x95F4;&#x6233;&#x7684;&#xFF0C;&#x63D2;&#x5165;&#x7684;&#x65F6;&#x5019;&#x4E5F;&#x662F;&#x6309;&#x65F6;&#x95F4;&#x6392;&#x5E8F;&#x7684;&#xFF0C;&#x5B83;&#x53EA;&#x4F1A;&#x5F71;&#x54CD;&#x5B83;&#x540E;&#x9762;&#x7684;&#x6D88;&#x606F;&#xFF0C;&#x524D;&#x9762;&#x7684;&#x4E0D;&#x53D7;&#x5F71;&#x54CD;<br>&#x2463;&#x6D88;&#x606F;&#x961F;&#x5217;&#x4E2D;&#x63D2;&#x5165;&#x6D88;&#x606F;&#x5C4F;&#x969C;&#xFF0C;&#x662F;&#x4E0D;&#x4F1A;&#x5524;&#x9192;&#x7EBF;&#x7A0B;&#x7684;(&#x63D2;&#x5165;&#x540C;&#x6B65;&#x6216;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#x4F1A;&#x5524;&#x9192;&#x6D88;&#x606F;&#x961F;&#x5217;)<br>&#x2464;&#x63D2;&#x5165;&#x6D88;&#x606F;&#x5C4F;&#x969C;&#x540E;&#xFF0C;&#x4F1A;&#x8FD4;&#x56DE;&#x4E00;&#x4E2A;token&#xFF0C;&#x662F;&#x6D88;&#x606F;&#x5C4F;&#x969C;&#x7684;&#x5E8F;&#x5217;&#x53F7;&#xFF0C;&#x540E;&#x7EED;&#x64A4;&#x9664;&#x6D88;&#x606F;&#x5C4F;&#x969C;&#x65F6;&#xFF0C;&#x9700;&#x8981;&#x6839;&#x636E;token&#x67E5;&#x627E;&#x5BF9;&#x5E94;&#x7684;&#x6D88;&#x606F;&#x5C4F;&#x969C;<br>&#x2465;&#x53D1;&#x9001;&#x5C4F;&#x969C;&#x6D88;&#x606F;&#x7684;API&#x88AB;&#x9690;&#x85CF;&#xFF0C;&#x9700;&#x8981;&#x901A;&#x8FC7;&#x53CD;&#x5C04;&#x8C03;&#x7528;postSyncBarrier&#x65B9;&#x6CD5;</p>
+<p>&#x539F;&#x7406;&#xFF0C;&#x770B;&#x4E0A;&#x9762;&#x7684;MessageQueue&#x7684;next&#x65B9;&#x6CD5;&#xFF0C;&#x6709;&#x8FD9;&#x4E48;&#x4E00;&#x6BB5;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (msg != <span class="keyword">null</span> &amp;&amp; msg.target == <span class="keyword">null</span>) {</span><br><span class="line">    <span class="comment">// Stalled by a barrier.  Find the next asynchronous message in the queue.</span></span><br><span class="line">    <span class="keyword">do</span> {</span><br><span class="line">        prevMsg = msg;</span><br><span class="line">        msg = msg.next;</span><br><span class="line">    } <span class="keyword">while</span> (msg != <span class="keyword">null</span> &amp;&amp; !msg.isAsynchronous());</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x4E5F;&#x5C31;&#x662F;&#x5F53;&#x9047;&#x5230;&#x4E86;&#x540C;&#x6B65;&#x5C4F;&#x969C;&#x65F6;&#xFF0C;&#x4F1A;&#x4E00;&#x76F4;&#x4E0D;&#x65AD;&#x627E;&#x5F02;&#x6B65;&#x6D88;&#x606F;&#x6765;&#x5904;&#x7406;&#x3002;</p>
+<p>&#xFF14;.&#x4EC0;&#x4E48;&#x662F;IdleHandler&#xFF1F;<br>IdleHandler&#x53EF;&#x4EE5;&#x89E3;&#x91CA;&#x4E3A;&#xFF0C;&#x5F53;handler&#x6D88;&#x606F;&#x673A;&#x5236;&#x5728;&#x51FA;&#x73B0;&#x7A7A;&#x95F2;&#x65F6;&#xFF0C;&#x53EF;&#x4EE5;&#x201C;&#x62BD;&#x7A7A;&#x201D;&#x6765;&#x5904;&#x7406;IdleHanlder&#x7684;&#x4E8B;&#x4EF6;&#x3002;<br>&#x5B83;&#x957F;&#x8FD9;&#x6837;&#x5B50;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">interface</span> <span class="title">IdleHandler</span> </span>{</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Called when the message queue has run out of messages and will now</span></span><br><span class="line"><span class="comment">     * wait for more.  Return true to keep your idle handler active, false</span></span><br><span class="line"><span class="comment">     * to have it removed.  This may be called if there are still messages</span></span><br><span class="line"><span class="comment">     * pending in the queue, but they are all scheduled to be dispatched</span></span><br><span class="line"><span class="comment">     * after the current time.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">queueIdle</span><span class="params">()</span></span>;</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x53EA;&#x6709;&#x4E00;&#x4E2A;queueIdle&#x65B9;&#x6CD5;&#x9700;&#x8981;&#x5B9E;&#x73B0;&#xFF0C;&#x8FD4;&#x56DE;&#x503C;&#x4E3A;false&#x4EE3;&#x8868;&#x53EA;&#x6267;&#x884C;&#x4E00;&#x6B21;<br>&#x81F3;&#x4E8E;&#x4F7F;&#x7528;&#x65B9;&#x6CD5;&#xFF0C;&#x7B49;&#x8BB2;&#x5B8C;&#x539F;&#x7406;&#x540E;&#x9644;&#x4E0A;android&#x7684;&#x4F7F;&#x7528;&#x4F8B;&#x5B50;</p>
+<p>&#x5173;&#x4E8E;&#x539F;&#x7406;&#xFF0C;&#x5927;&#x6982;&#x6D41;&#x7A0B;&#x662F;&#x8FD9;&#x6837;&#x7684;&#xFF1A;<br>1.&#x5982;&#x679C;&#x672C;&#x6B21;&#x5FAA;&#x73AF;&#x62FF;&#x5230;&#x7684;Message&#x4E3A;&#x7A7A;&#xFF0C;&#x6216;&#x8005;&#xFF01;&#x8FD9;&#x4E2A;Message&#x662F;&#x4E00;&#x4E2A;&#x5EF6;&#x65F6;&#x7684;&#x6D88;&#x606F;&#x800C;&#x4E14;&#x8FD8;&#x6CA1;&#x5230;&#x6307;&#x5B9A;&#x89E6;&#x53D1;&#x65F6;&#x95F4;&#xFF0C;&#x90A3;&#x4E48;&#x5C31;&#x8BA4;&#x5B9A;&#x5F53;&#x524D;&#x7684;&#x961F;&#x5217;&#x4E3A;&#x7A7A;&#x95F2;&#x65F6;&#x95F4;&#x3002;<br>2.&#x63A5;&#x7740;&#x4F1A;&#x904D;&#x5386;mPendingIdleHandlers&#x6570;&#x7EC4;(&#x8FD9;&#x4E2A;&#x6570;&#x7EC4;&#x91CC;&#x9762;&#x7684;&#x5143;&#x7D20;&#x6BCF;&#x6B21;&#x90FD;&#x4F1A;&#x5230;mIdleHandlers&#x4E2D;&#x53BB;&#x62FF;)&#x6765;&#x8C03;&#x7528;&#x6BCF;&#x4E00;&#x4E2A;IdleHandler&#x5B9E;&#x4F8B;&#x7684;queueIdle&#x65B9;&#x6CD5;&#x3002;<br>3.&#x5982;&#x679C;&#x8FD9;&#x4E2A;&#x65B9;&#x6CD5;&#x8FD4;&#x56DE;false&#x7684;&#x8BDD;&#xFF0C;&#x90A3;&#x4E48;&#x8FD9;&#x4E2A;&#x5B9E;&#x4F8B;&#x5C31;&#x4F1A;&#x4ECE;mIdleHandlers&#x4E2D;&#x79FB;&#x9664;&#xFF0C;&#x4E5F;&#x5C31;&#x662F;&#x5F53;&#x4E0B;&#x6B21;&#x961F;&#x5217;&#x7A7A;&#x95F2;&#x7684;&#x65F6;&#x5019;&#xFF0C;&#x4E0D;&#x4F1A;&#x7EE7;&#x7EED;&#x56DE;&#x8C03;&#x5B83;&#x7684;queueIdle&#x65B9;&#x6CD5;&#x4E86;&#x3002;<br>4.&#x6267;&#x884C;&#x5B8C;&#x540E;&#x4F1A;&#x518D;&#x6B21;&#x8FDB;&#x5165;&#x5FAA;&#x73AF;&#xFF0C;&#x7136;&#x540E;&#x8FDB;&#x5165;&#x4F11;&#x7720;&#xFF0C;&#x7B49;&#x5230;&#x4E0B;&#x4E2A;&#x6D88;&#x606F;&#x7684;&#x63D2;&#x5165;&#x6765;&#x5524;&#x9192;<br>&#x4E0A;&#x6E90;&#x7801;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Message <span class="title">next</span><span class="params">()</span> </span>{</span><br><span class="line"></span><br><span class="line">    <span class="comment">// &#x5F53;&#x7B2C;&#x4E00;&#x6B21;&#x8D70;next&#x4F1A;&#x8BBE;&#x7F6E;&#x4E3A;-1&#xFF0C;&#x6CE8;&#x610F;&#x4E86;&#xFF01;&#xFF01;</span></span><br><span class="line">    <span class="keyword">int</span> pendingIdleHandlerCount = -<span class="number">1</span>;</span><br><span class="line">    <span class="keyword">int</span> nextPollTimeoutMillis = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (;;) {</span><br><span class="line">        <span class="keyword">if</span> (nextPollTimeoutMillis != <span class="number">0</span>) {</span><br><span class="line">            Binder.flushPendingCommands();</span><br><span class="line">        }</span><br><span class="line">        <span class="comment">// &#x963B;&#x585E;</span></span><br><span class="line">        nativePollOnce(ptr, nextPollTimeoutMillis);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">synchronized</span> (<span class="keyword">this</span>) {</span><br><span class="line">            <span class="comment">// &#x5C1D;&#x8BD5;&#x83B7;&#x53D6;message&#xFF0C;&#x5982;&#x679C;&#x627E;&#x5230;&#x7B26;&#x5408;&#x6761;&#x4EF6;&#x7684;&#x5C31;&#x8FD4;&#x56DE;</span></span><br><span class="line">            &#x2026;&#x2026;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// &#x80FD;&#x8D70;&#x5230;&#x8FD9;&#x91CC;&#xFF0C;&#x8BF4;&#x660E;&#x6CA1;&#x6709;&#x627E;&#x5230;&#x7B26;&#x5408;&#x7684;msg</span></span><br><span class="line">            <span class="comment">// &#x6240;&#x4EE5;&#x53EA;&#x6709;&#x5F53;queue&#x4E3A;&#x7A7A;&#x6216;&#x8005;&#x5F53;&#x524D;message&#x662F;&#x5EF6;&#x8FDF;&#x5904;&#x7406;&#x624D;&#x4F1A;&#x8FD0;&#x884C;</span></span><br><span class="line">            <span class="comment">// &#x7B2C;&#x4E00;&#x6B21;&#x8FD0;&#x884C;&#xFF0C;&#x83B7;&#x53D6;mIdleHandlers&#x7684;&#x4E2A;&#x6570;</span></span><br><span class="line">            <span class="comment">// &#x7531;&#x4E8E;&#x540E;&#x9762;pendingIdleHandlerCount&#x4E0D;&#x53EF;&#x80FD;&lt;0&#xFF0C;&#x6240;&#x4EE5;&#x53EA;&#x4F1A;&#x8D70;&#x4E00;&#x6B21;</span></span><br><span class="line">            <span class="keyword">if</span> (pendingIdleHandlerCount &lt; <span class="number">0</span></span><br><span class="line">                    &amp;&amp; (mMessages == <span class="keyword">null</span> || now &lt; mMessages.when)) {</span><br><span class="line">                pendingIdleHandlerCount = mIdleHandlers.size();</span><br><span class="line">            }</span><br><span class="line">            <span class="keyword">if</span> (pendingIdleHandlerCount &lt;= <span class="number">0</span>) {</span><br><span class="line">                <span class="comment">// &#x6CA1;&#x6709;idle handlers&#xFF0C;&#x963B;&#x585E;&#x7B49;&#x5F85;</span></span><br><span class="line">                mBlocked = <span class="keyword">true</span>;</span><br><span class="line">                <span class="keyword">continue</span>;</span><br><span class="line">            }</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (mPendingIdleHandlers == <span class="keyword">null</span>) {</span><br><span class="line">                <span class="comment">// &#x6700;&#x591A;4&#x4E2A;</span></span><br><span class="line">                mPendingIdleHandlers = <span class="keyword">new</span> MessageQueue.IdleHandler[Math.max(pendingIdleHandlerCount, <span class="number">4</span>)];</span><br><span class="line">            }</span><br><span class="line">            mPendingIdleHandlers = mIdleHandlers.toArray(mPendingIdleHandlers);</span><br><span class="line">        }</span><br><span class="line"></span><br><span class="line">        <span class="comment">// &#x8FD0;&#x884C;idle handlers.</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; pendingIdleHandlerCount; i++) {</span><br><span class="line">            <span class="keyword">final</span> MessageQueue.IdleHandler idler = mPendingIdleHandlers[i];</span><br><span class="line">            mPendingIdleHandlers[i] = <span class="keyword">null</span>; <span class="comment">// release the reference to the handler</span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">boolean</span> keep = <span class="keyword">false</span>;</span><br><span class="line">            <span class="keyword">try</span> {</span><br><span class="line">                <span class="comment">// idler&#x7684;&#x8FD4;&#x56DE;&#x503C;</span></span><br><span class="line">                keep = idler.queueIdle();</span><br><span class="line">            } <span class="keyword">catch</span> (Throwable t) {</span><br><span class="line">                Log.wtf(TAG, <span class="string">&quot;IdleHandler threw exception&quot;</span>, t);</span><br><span class="line">            }</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (!keep) {</span><br><span class="line">                <span class="keyword">synchronized</span> (<span class="keyword">this</span>) {</span><br><span class="line">                    <span class="comment">// &#x8FD4;&#x56DE;&#x503C;&#x4E3A;false&#xFF0C;&#x79FB;&#x9664;</span></span><br><span class="line">                    mIdleHandlers.remove(idler);</span><br><span class="line">                }</span><br><span class="line">            }</span><br><span class="line">        }</span><br><span class="line"></span><br><span class="line">        <span class="comment">// &#x91CD;&#x8BBE;&#x4E3A;0</span></span><br><span class="line">        pendingIdleHandlerCount = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// &#x5F53;&#x6267;&#x884C;&#x5B8C;idleHandler&#x65F6;&#x9700;&#x8981;&#x8BBE;&#x7F6E;&#x4E3A;0</span></span><br><span class="line">        nextPollTimeoutMillis = <span class="number">0</span>;</span><br><span class="line">    }</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x90A3;&#x4E48;&#xFF0C;&#x5F53;idleHandles&#x4E0D;&#x4E3A;&#x7A7A;&#x65F6;&#xFF0C;&#x662F;&#x4E0D;&#x662F;&#x5C31;&#x4F1A;&#x4E00;&#x76F4;&#x6267;&#x884C;idleHandlers&#x5462;&#xFF1F;<br>&#x4E0D;&#x4F1A;&#xFF01;<br>&#x5047;&#x8BBE;&#xFF0C;&#x7B2C;&#x4E00;&#x6B21;&#x8C03;&#x7528;next&#x65F6;&#xFF0C;pendingIdleHandlerCount&#x8BBE;&#x4E3A;-1&#x3002;<br>&#x5F00;&#x59CB;&#x8FDB;&#x5165;&#x6B7B;&#x5FAA;&#x73AF;&#xFF0C;&#x8FD9;&#x65F6;&#x521A;&#x597D;&#x6CA1;&#x6709;&#x6D88;&#x606F;&#x5904;&#x7406;&#xFF0C;&#x90A3;&#x4E48;&#x5C31;&#x4F1A;for&#x5FAA;&#x73AF;&#x6267;&#x884C;&#x6240;&#x6709;&#x7684;idleHandles&#xFF0C;&#x4FDD;&#x7559;&#x90A3;&#x4E9B;queueIdle&#x8FD4;&#x56DE;true&#x7684;&#x3002;<br>&#x6700;&#x540E;&#x6211;&#x4EEC;&#x4F1A;&#x628A;pendingIdleHandlerCount&#x548C;nextPollTimeoutMillis&#x90FD;&#x8BBE;&#x4E3A;&#xFF10;&#x3002;<br>&#x597D;&#x7684;&#x7136;&#x540E;&#x518D;&#x6B21;&#x8FDB;&#x5165;&#x5FAA;&#x73AF;&#xFF0C;&#x8BB0;&#x4F4F;pendingIdleHandlerCount&#x548C;nextPollTimeoutMillis&#x90FD;&#x662F;&#xFF10;&#xFF08;pendingIdleHandlerCount&#x8BBE;&#x4E3A;-1&#x662F;&#x5728;&#x5FAA;&#x73AF;&#x524D;&#xFF09;&#x3002;&#x7136;&#x540E;&#x521A;&#x597D;&#x6CA1;&#x6709;&#x4EFB;&#x4F55;&#x6D88;&#x606F;&#xFF0C;nextPollTimeoutMillis&#x8BBE;&#x4E3A;&#xFF0D;&#xFF11;&#x3002;&#x7EE7;&#x7EED;&#x5F80;&#x4E0B;&#x8D70;&#xFF0C;&#x5C31;&#x4F1A;&#x8FDB;&#x5165;&#x8FD9;&#x91CC;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (pendingIdleHandlerCount &lt;= <span class="number">0</span>) {</span><br><span class="line">    <span class="comment">// &#x6CA1;&#x6709;idle handlers&#xFF0C;&#x963B;&#x585E;&#x7B49;&#x5F85;</span></span><br><span class="line">    mBlocked = <span class="keyword">true</span>;</span><br><span class="line">    <span class="keyword">continue</span>;</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x8D70;&#x4E86;continue&#xFF0C;&#x8BF4;&#x660E;&#x53C8;&#x5F00;&#x59CB;&#x5FAA;&#x73AF;&#x4E86;&#x3002;<br>&#x8FD9;&#x6B21;nextPollTimeoutMillis&#x4E3A;&#xFF0D;&#xFF11;&#x4E86;&#xFF0C;&#x6240;&#x4EE5;&#x6267;&#x884C;&#x5230;nativePollOnce(ptr, nextPollTimeoutMillis)&#x4F1A;&#x88AB;&#x963B;&#x585E;&#x4F4F;&#x4E86;&#x3002;&#x4E5F;&#x5C31;&#x4E0D;&#x4F1A;&#x6267;&#x884C;idleHandles&#x4E86;&#x3002;</p>
+<p>&#x7B49;&#x5230;&#x4E0B;&#x4E00;&#x4E2A;&#x6D88;&#x606F;&#x8FDB;&#x5165;&#xFF0C;&#x5524;&#x9192;&#xFF0C;&#x6267;&#x884C;&#x6D88;&#x606F;&#x540E;&#xFF0C;&#x5F53;&#x518D;&#x6B21;&#x8C03;&#x7528;next&#x65F6;&#xFF0C;&#x5982;&#x679C;&#x6B64;&#x65F6;&#x53C8;&#x6CA1;&#x6709;&#x6D88;&#x606F;&#x9700;&#x8981;&#x5904;&#x7406;&#x4E86;&#xFF0C;&#x5C31;&#x4F1A;&#x6267;&#x884C;&#x4E4B;&#x524D;&#x5269;&#x4E0B;&#x7684;idleHandles&#x4E86;&#x3002;</p>
+<p>&#x7CFB;&#x7EDF;&#x6E90;&#x7801;&#x7684;&#x4F7F;&#x7528;&#x4F8B;&#x5B50;&#xFF1A;&#x5F53;AMS&#x8C03;&#x7528;&#x4E86;doLowMemReportIfNeededLocked&#xFF0C;&#x4F1A;&#x89E6;&#x53D1;&#x5230;ActvitityThread&#x7684;processInBackground&#xFF0C;&#x8FD9;&#x4E2A;&#x65B9;&#x6CD5;&#x4F1A;&#x53D1;&#x51FA;GC_WHEN_IDLE&#x7684;&#x6D88;&#x606F;&#x3002;ActivityThread&#x5728;&#x6536;&#x5230;GC_WHEN_IDLE&#x7684;&#x6D88;&#x606F;&#x65F6;&#xFF0C;&#x4F1A;&#x6DFB;&#x52A0;&#x4E00;&#x4E2A;gcIdler<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">ActivityThread.java</span><br><span class="line"><span class="keyword">case</span> GC_WHEN_IDLE:</span><br><span class="line">    scheduleGcIdler();</span><br><span class="line">    <span class="keyword">break</span>;</span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">scheduleGcIdler</span><span class="params">()</span> </span>{</span><br><span class="line">    <span class="keyword">if</span> (!mGcIdlerScheduled) {</span><br><span class="line">        mGcIdlerScheduled = <span class="keyword">true</span>;</span><br><span class="line">        Looper.myQueue().addIdleHandler(mGcIdler);</span><br><span class="line">    }</span><br><span class="line">    mH.removeMessages(H.GC_WHEN_IDLE);</span><br><span class="line">}</span><br><span class="line"></span><br><span class="line"><span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">GcIdler</span> <span class="keyword">implements</span> <span class="title">MessageQueue</span>.<span class="title">IdleHandler</span> </span>{</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">boolean</span> <span class="title">queueIdle</span><span class="params">()</span> </span>{</span><br><span class="line">        doGcIfNeeded();</span><br><span class="line">        purgePendingResources();</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">    }</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<ul><br>IdleHandler&#x9002;&#x7528;&#x4E8E;&#x975E;&#x5FC5;&#x8981;&#x4E14;&#x4E0D;&#x8017;&#x65F6;&#x7684;ui&#x66F4;&#x65B0;&#x64CD;&#x4F5C;&#x7B49;&#xFF08;&#x4E3B;&#x7EBF;&#x7A0B;&#xFF09;<br>&#x5176;&#x4ED6;&#x4F7F;&#x7528;&#x573A;&#x666F;&#xFF1A;<br><li>Activity&#x542F;&#x52A8;&#x4F18;&#x5316;&#xFF08;&#x52A0;&#x5FEB;App&#x542F;&#x52A8;&#x901F;&#x5EA6;&#xFF09;&#xFF1A;onCreate&#xFF0C;onStart&#xFF0C;onResume&#x4E2D;&#x8017;&#x65F6;&#x8F83;&#x77ED;&#x4F46;&#x975E;&#x5FC5;&#x8981;&#x7684;&#x4EE3;&#x7801;&#x53EF;&#x4EE5;&#x653E;&#x5230;IdleHandler&#x4E2D;&#x6267;&#x884C;&#xFF0C;&#x51CF;&#x5C11;&#x542F;&#x52A8;&#x65F6;&#x95F4;</li><br><li>&#x60F3;&#x8981;&#x5728;&#x4E00;&#x4E2A;View&#x7ED8;&#x5236;&#x5B8C;&#x6210;&#x4E4B;&#x540E;&#x6DFB;&#x52A0;&#x5176;&#x4ED6;&#x4F9D;&#x8D56;&#x4E8E;&#x8FD9;&#x4E2A;View&#x7684;View&#xFF0C;&#x5F53;&#x7136;&#x8FD9;&#x4E2A;&#x7528;View#post()&#x4E5F;&#x80FD;&#x5B9E;&#x73B0;&#xFF0C;&#x533A;&#x522B;&#x5C31;&#x662F;&#x524D;&#x8005;&#x4F1A;&#x5728;&#x6D88;&#x606F;&#x961F;&#x5217;&#x7A7A;&#x95F2;&#x65F6;&#x6267;&#x884C;</li><br><li>&#x53D1;&#x9001;&#x4E00;&#x4E2A;&#x8FD4;&#x56DE;true&#x7684;IdleHandler&#xFF0C;&#x5728;&#x91CC;&#x9762;&#x8BA9;&#x67D0;&#x4E2A;View&#x4E0D;&#x505C;&#x95EA;&#x70C1;&#xFF0C;&#x8FD9;&#x6837;&#x5F53;&#x7528;&#x6237;&#x53D1;&#x5446;&#x65F6;&#x5C31;&#x53EF;&#x4EE5;&#x8BF1;&#x5BFC;&#x7528;&#x6237;&#x70B9;&#x51FB;&#x8FD9;&#x4E2A;View&#xFF0C;&#x8FD9;&#x4E5F;&#x662F;&#x79CD;&#x5F88;&#x9177;&#x7684;&#x64CD;&#x4F5C;</li><br><li>&#x4E00;&#x4E9B;&#x7B2C;&#x4E09;&#x65B9;&#x5E93;&#x4E2D;&#x6709;&#x4F7F;&#x7528;&#xFF0C;&#x6BD4;&#x5982;LeakCanary&#xFF0C;Glide&#x4E2D;&#x6709;&#x4F7F;&#x7528;&#x5230;&#xFF0C;&#x5177;&#x4F53;&#x53EF;&#x4EE5;&#x81EA;&#x884C;&#x53BB;&#x67E5;&#x770B;</li></ul>
+
+<p>&#xFF15;.Message&#x5BF9;&#x8C61;&#x521B;&#x5EFA;&#x7684;&#x65B9;&#x5F0F;&#x6709;&#x54EA;&#x4E9B; &amp; &#x533A;&#x522B;&#xFF1F;<br>&#x4E24;&#x79CD;&#x6784;&#x5EFA;&#x65B9;&#x6CD5;&#xFF1A;Message.obtain() &#x548C; new Message()<br>obtain&#xFF1A;&#x5982;&#x679C;&#x6CA1;&#x6709;message&#xFF0C;&#x5219;new Message&#x5BF9;&#x8C61;&#x3002;&#x5982;&#x679C;&#x6709;&#xFF0C;&#x5219;&#x590D;&#x7528;&#x4E4B;&#x524D;&#x7684;Message&#x5BF9;&#x8C61;<br>&#x6E90;&#x7801;&#x89E3;&#x6790;&#xFF1A;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Return a new Message instance from the global pool. Allows us to</span></span><br><span class="line"><span class="comment"> * avoid allocating new objects in many cases.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> Message <span class="title">obtain</span><span class="params">()</span> </span>{</span><br><span class="line">    <span class="keyword">synchronized</span> (sPoolSync) {</span><br><span class="line">        <span class="keyword">if</span> (sPool != <span class="keyword">null</span>) {</span><br><span class="line">            Message m = sPool;</span><br><span class="line">            sPool = m.next;</span><br><span class="line">            m.next = <span class="keyword">null</span>;</span><br><span class="line">            m.flags = <span class="number">0</span>; <span class="comment">// clear in-use flag</span></span><br><span class="line">            sPoolSize--;</span><br><span class="line">            <span class="keyword">return</span> m;</span><br><span class="line">        }</span><br><span class="line">    }</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">new</span> Message();</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x8BF7;&#x8BB0;&#x4F4F;&#xFF0C;message&#x662F;&#x4E00;&#x4E2A;&#x5355;&#x94FE;&#x8868;&#x7ED3;&#x6784;&#x3002;&#x6240;&#x4EE5;sPool&#x672C;&#x8D28;&#x662F;&#x4E00;&#x4E2A;&#x5355;&#x94FE;&#x8868;&#x7ED3;&#x6784;&#xFF0C;obtain&#x6700;&#x7EC8;&#x5C31;&#x662F;&#x4ECE;&#x8FD9;&#x4E2A;&#x5355;&#x94FE;&#x8868;&#x7ED3;&#x6784;&#x4E0D;&#x65AD;&#x62FF;&#x5230;&#x7F13;&#x5B58;&#x7684;&#x503C;&#x3002;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">Message</span> <span class="keyword">implements</span> <span class="title">Parcelable</span> </span>{</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">int</span> what;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">int</span> arg1;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">int</span> arg2;</span><br><span class="line">    <span class="keyword">public</span> Object obj;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> Messenger replyTo;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">int</span> sendingUid = -<span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*package*/</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> FLAG_IN_USE = <span class="number">1</span> &lt;&lt; <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/** I set message is asynchronous */</span></span><br><span class="line">    <span class="comment">/*package*/</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> FLAG_ASYNCHRONOUS = <span class="number">1</span> &lt;&lt; <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/** Flags to clear in the copyFrom method */</span></span><br><span class="line">    <span class="comment">/*package*/</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> FLAGS_TO_CLEAR_ON_COPY_FROM = FLAG_IN_USE;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*package*/</span> <span class="keyword">int</span> flags;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*package*/</span> <span class="keyword">long</span> when;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*package*/</span> Bundle data;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*package*/</span> Handler target;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*package*/</span> Runnable callback;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// &#x91CD;&#x70B9;&#x770B;&#x8FD9;&#x91CC;&#xFF01;&#xFF01;</span></span><br><span class="line">    <span class="comment">// next&#x83B7;&#x53D6;&#x5B83;&#x7684;&#x4E0B;&#x4E00;&#x4E2A;&#x6D88;&#x606F;</span></span><br><span class="line">    <span class="comment">/*package*/</span> Message next;</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>ok&#xFF0C;&#x4ECE;&#x4E0A;&#x9762;&#x770B;&#x5230;&#x662F;&#x901A;&#x8FC7;sPool&#x662F;&#x5426;&#x4E3A;&#x7A7A;&#x6765;&#x5224;&#x65AD;&#x600E;&#x4E48;&#x62FF;&#x7F13;&#x5B58;&#x7684;&#xFF0C;&#x90A3;&#x4E48;sPool&#x53C8;&#x662F;&#x4ECE;&#x54EA;&#x91CC;&#x8D4B;&#x503C;&#x5462;&#xFF1F;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">recycleUnchecked</span><span class="params">()</span> </span>{</span><br><span class="line">    <span class="comment">// Mark the message as in use while it remains in the recycled object pool.</span></span><br><span class="line">    <span class="comment">// Clear out all other details.</span></span><br><span class="line">    flags = FLAG_IN_USE;</span><br><span class="line">    what = <span class="number">0</span>;</span><br><span class="line">    arg1 = <span class="number">0</span>;</span><br><span class="line">    arg2 = <span class="number">0</span>;</span><br><span class="line">    obj = <span class="keyword">null</span>;</span><br><span class="line">    replyTo = <span class="keyword">null</span>;</span><br><span class="line">    sendingUid = -<span class="number">1</span>;</span><br><span class="line">    when = <span class="number">0</span>;</span><br><span class="line">    target = <span class="keyword">null</span>;</span><br><span class="line">    callback = <span class="keyword">null</span>;</span><br><span class="line">    data = <span class="keyword">null</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">synchronized</span> (sPoolSync) {</span><br><span class="line">        <span class="comment">// &#x6709;&#x6570;&#x91CF;&#x9650;&#x5236;</span></span><br><span class="line">        <span class="keyword">if</span> (sPoolSize &lt; MAX_POOL_SIZE) {</span><br><span class="line">            next = sPool;</span><br><span class="line">            sPool = <span class="keyword">this</span>;</span><br><span class="line">            sPoolSize++;</span><br><span class="line">        }</span><br><span class="line">    }</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x662F;&#x5728;recycleUnchecked&#x7684;&#x65F6;&#x5019;&#x8D4B;&#x503C;&#x7684;&#xFF0C;&#x90A3;recycleUnchecked&#x53C8;&#x662F;&#x4EC0;&#x4E48;&#x65F6;&#x5019;&#x8C03;&#x7528;&#x5462;&#xFF1F;<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">loop</span><span class="params">()</span> </span>{</span><br><span class="line">    <span class="keyword">final</span> Looper me = myLooper();</span><br><span class="line">    <span class="keyword">if</span> (me == <span class="keyword">null</span>) {</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(<span class="string">&quot;No Looper; Looper.prepare() wasn&apos;t called on this thread.&quot;</span>);</span><br><span class="line">    }</span><br><span class="line">    <span class="keyword">final</span> MessageQueue queue = me.mQueue;</span><br><span class="line">    &#x2026;&#x2026;</span><br><span class="line">    <span class="keyword">for</span> (;;) {</span><br><span class="line">        <span class="comment">// &#x5177;&#x4F53;&#x8FC7;&#x7A0B;&#x53EF;&#x4EE5;&#x770B;&#x4E0A;&#x9762;&#x5206;&#x6790;&#xFF0C;&#x8FD9;&#x91CC;&#x4E0D;&#x518D;&#x8D58;&#x8FF0;</span></span><br><span class="line">        &#x2026;&#x2026;</span><br><span class="line">        <span class="comment">// &#x53EF;&#x4EE5;&#x770B;&#x5230;&#x5728;&#x5FAA;&#x73AF;&#x83B7;&#x53D6;&#x6D88;&#x606F;&#x65F6;</span></span><br><span class="line">        <span class="comment">// &#x6700;&#x540E;&#x4E00;&#x6B65;&#x662F;&#x628A;&#x6D88;&#x606F;&#x56DE;&#x6536;&#x4E86;</span></span><br><span class="line">        msg.recycleUnchecked();</span><br><span class="line">    }</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>&#x4E8E;&#x662F;&#x4ECE;&#x8FD9;&#x91CC;&#x53EF;&#x4EE5;&#x5F97;&#x51FA;&#xFF0C;&#x5F53;&#x6D88;&#x606F;&#x961F;&#x5217;&#x8FD8;&#x6CA1;&#x6709;&#x6D88;&#x606F;&#x65F6;&#xFF0C;&#x4F1A;&#x5148;&#x65B0;&#x5EFA;&#x4E00;&#x4E2A;Message&#x5BF9;&#x8C61;&#xFF0C;&#x7136;&#x540E;&#x901A;&#x8FC7;enqueue&#x8FDB;&#x5165;&#x961F;&#x5217;&#xFF0C;&#x901A;&#x8FC7;looper.loop&#x62FF;&#x51FA;&#x7B2C;&#x4E00;&#x4E2A;&#x6D88;&#x606F;&#x6765;&#x5904;&#x7406;&#x540E;&#xFF0C;&#x628A;&#x8BE5;&#x6D88;&#x606F;&#x7ED9;&#x56DE;&#x6536;&#x4E86;&#xFF0C;&#x5982;&#x679C;&#x8FD9;&#x65F6;&#x5019;&#x53C8;&#x8981;&#x53D1;&#x9001;&#x7B2C;&#x4E8C;&#x4E2A;&#x6D88;&#x606F;&#x65F6;&#xFF0C;&#x5C31;&#x53EF;&#x4EE5;&#x76F4;&#x63A5;&#x590D;&#x7528;&#x521A;&#x521A;&#x7684;sPool&#xFF0C;&#x5373;&#x7B2C;&#x4E00;&#x4E2A;message&#x7684;&#x5BF9;&#x8C61;&#x3002;&#x800C;&#x4E14;&#x56E0;&#x4E3A;&#x5728;recycler&#x65F6;&#x4F1A;&#x6E05;&#x7A7A;&#x6240;&#x6709;&#x7684;what&#x3001;callback&#x8FD9;&#x4E9B;&#x4FE1;&#x606F;&#xFF0C;&#x4E5F;&#x4E0D;&#x6015;&#x6709;&#x810F;&#x6570;&#x636E;&#x3002;</p>
+<p>obtain&#x5728;&#x83B7;&#x53D6;&#x65F6;&#x4F1A;&#x5224;&#x65AD;&#x5F53;&#x524D;&#x6D88;&#x606F;&#x6C60;&#x662F;&#x5426;&#x6709;&#x53EF;&#x4EE5;&#x590D;&#x7528;&#xFF0C;&#x5982;&#x679C;&#x6CA1;&#x6709;&#x5C31;&#x65B0;&#x5EFA;&#x5BF9;&#x8C61;&#x4F5C;&#x4E3A;&#x94FE;&#x8868;&#x5934;&#xFF0C;&#x5982;&#x679C;&#x6709;&#x5C31;&#x76F4;&#x63A5;&#x590D;&#x7528;&#x94FE;&#x8868;&#x5934;&#xFF0C;&#x79FB;&#x9664;&#xFF0C;&#x7136;&#x540E;&#x628A;&#x4E0B;&#x4E00;&#x4E2A;&#x6D88;&#x606F;&#x4F5C;&#x4E3A;&#x94FE;&#x8868;&#x5934;&#x3002;&#x5F53;&#x62FF;&#x51FA;&#x53BB;&#x7684;&#x6D88;&#x606F;&#x5BF9;&#x8C61;&#x5904;&#x7406;&#x5B8C;&#x56DE;&#x6536;&#x65F6;&#xFF0C;&#x5219;&#x53C8;&#x628A;&#x6D88;&#x606F;&#x653E;&#x8FDB;&#x94FE;&#x8868;&#x6C60;&#x91CC;&#x9762;&#x3002;&#x672C;&#x8D28;&#x5C31;&#x662F;&#x83B7;&#x53D6;&#x79FB;&#x9664;&#x8868;&#x5934;&#xFF0C;&#x56DE;&#x6536;&#x52A0;&#x5165;&#x8868;&#x5C3E;&#x3002;<br>&#x6574;&#x4E2A;&#x6D41;&#x7A0B;&#x5927;&#x81F4;&#x5982;&#x4E0B;&#xFF1A;<br>&#x5047;&#x8BBE;&#x540C;&#x65F6;&#x6709;&#x4E09;&#x4E2A;&#x6D88;&#x606F;A&#x3001;B&#x9700;&#x8981;&#x53D1;&#x9001;&#xFF0C;&#x5F53;A&#x6267;&#x884C;&#x5B8C;&#x6BD5;&#x65F6;&#xFF0C;&#x6267;&#x884C;recycle&#x65B9;&#x6CD5;&#xFF1A;<br>next = sPool;<br>sPool = this;<br>sPoolSize++;<br>&#x5373;A.next = sPool = null; sPool = this = A; &#x6B64;&#x65F6;&#x7684;&#x7F13;&#x5B58;&#x6D88;&#x606F;&#x94FE;&#x8868;&#xFF1A;A-&gt;null<br>B&#x5904;&#x7406;&#x5B8C;&#x6BD5;&#x6267;&#x884C;recycle&#x540E;&#xFF1A;B.next = sPool = A; sPool = this = B&#x3002; &#x6D88;&#x606F;&#x94FE;&#x8868;&#xFF1A;B-&gt;A-&gt;null<br>&#x8FD9;&#x65F6;&#x8C03;&#x7528;&#x4E86;Message.obtain&#xFF0C;&#x8FD4;&#x56DE;&#x4E86;sPool&#xFF0C;&#x5C31;&#x662F;B&#x4E86;</p>
+<p>&#x603B;&#x7ED3;&#xFF1A;&#x8FD9;&#x5C31;&#x662F;&#x901A;&#x8FC7;obtain&#x65B9;&#x6CD5;&#x83B7;&#x53D6;Message&#x5BF9;&#x8C61;&#x7684;&#x8BE6;&#x60C5;&#x3002;&#x901A;&#x8FC7;obtain&#x65B9;&#x6CD5;&#x83B7;&#x53D6;Message&#x5BF9;&#x8C61;&#x4F7F;&#x5F97;Message&#x5230;&#x4E86;&#x91CD;&#x590D;&#x7684;&#x5229;&#x7528;&#xFF0C;&#x51CF;&#x5C11;&#x4E86;&#x6BCF;&#x6B21;&#x83B7;&#x53D6;Message&#x65F6;&#x53BB;&#x7533;&#x8BF7;&#x7A7A;&#x95F4;&#x7684;&#x65F6;&#x95F4;&#x3002;&#x540C;&#x65F6;&#xFF0C;&#x8FD9;&#x6837;&#x4E5F;&#x4E0D;&#x4F1A;&#x6C38;&#x65E0;&#x6B62;&#x5883;&#x7684;&#x53BB;&#x521B;&#x5EFA;&#x65B0;&#x5BF9;&#x8C61;&#xFF0C;&#x51CF;&#x5C0F;&#x4E86;Jvm&#x5783;&#x573E;&#x56DE;&#x6536;&#x7684;&#x538B;&#x529B;&#xFF0C;&#x63D0;&#x9AD8;&#x4E86;&#x6548;&#x7387;&#x3002;</p>
+<p>&#xFF16;.Looper&#x7684;quit&#x548C;quitSafely&#x533A;&#x522B;<br>&#x672C;&#x8D28;&#x90FD;&#x662F;&#x8C03;&#x7528;&#x4E86;messagequeue&#x7684;quit(boolean safe)<br></p><figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">quit</span><span class="params">(<span class="keyword">boolean</span> safe)</span> </span>{</span><br><span class="line">    <span class="keyword">if</span> (!mQuitAllowed) {</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">&quot;Main thread not allowed to quit.&quot;</span>);</span><br><span class="line">    }</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">synchronized</span> (<span class="keyword">this</span>) {</span><br><span class="line">        <span class="keyword">if</span> (mQuitting) {</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        }</span><br><span class="line">        <span class="comment">// &#x8BBE;&#x7F6E;mQuitting&#x4E3A;true&#xFF0C;&#x8FD9;&#x6837;&#x5728;next&#x65F6;&#x56E0;&#x4E3A;&#x8FD9;&#x4E2A;&#x4E3A;true&#x800C;return null</span></span><br><span class="line">        mQuitting = <span class="keyword">true</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (safe) {</span><br><span class="line">            removeAllFutureMessagesLocked();</span><br><span class="line">        } <span class="keyword">else</span> {</span><br><span class="line">            removeAllMessagesLocked();</span><br><span class="line">        }</span><br><span class="line"></span><br><span class="line">        <span class="comment">// We can assume mPtr != 0 because mQuitting was previously false.</span></span><br><span class="line">        nativeWake(mPtr);</span><br><span class="line">    }</span><br><span class="line">}</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">removeAllMessagesLocked</span><span class="params">()</span> </span>{</span><br><span class="line">    Message p = mMessages;</span><br><span class="line">    <span class="keyword">while</span> (p != <span class="keyword">null</span>) {</span><br><span class="line">        Message n = p.next;</span><br><span class="line">        p.recycleUnchecked();</span><br><span class="line">        p = n;</span><br><span class="line">    }</span><br><span class="line">    mMessages = <span class="keyword">null</span>;</span><br><span class="line">}</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">removeAllFutureMessagesLocked</span><span class="params">()</span> </span>{</span><br><span class="line">    <span class="keyword">final</span> <span class="keyword">long</span> now = SystemClock.uptimeMillis();</span><br><span class="line">    Message p = mMessages;</span><br><span class="line">    <span class="keyword">if</span> (p != <span class="keyword">null</span>) {</span><br><span class="line">        <span class="keyword">if</span> (p.when &gt; now) {</span><br><span class="line">            removeAllMessagesLocked();</span><br><span class="line">        } <span class="keyword">else</span> {</span><br><span class="line">            Message n;</span><br><span class="line">            <span class="keyword">for</span> (;;) {</span><br><span class="line">                n = p.next;</span><br><span class="line">                <span class="keyword">if</span> (n == <span class="keyword">null</span>) {</span><br><span class="line">                    <span class="keyword">return</span>;</span><br><span class="line">                }</span><br><span class="line">                <span class="keyword">if</span> (n.when &gt; now) {</span><br><span class="line">                    <span class="keyword">break</span>;</span><br><span class="line">                }</span><br><span class="line">                p = n;</span><br><span class="line">            }</span><br><span class="line">            p.next = <span class="keyword">null</span>;</span><br><span class="line">            <span class="keyword">do</span> {</span><br><span class="line">                p = n;</span><br><span class="line">                n = p.next;</span><br><span class="line">                p.recycleUnchecked();</span><br><span class="line">            } <span class="keyword">while</span> (n != <span class="keyword">null</span>);</span><br><span class="line">        }</span><br><span class="line">    }</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure><p></p>
+<p>quit()&#x5B9E;&#x9645;&#x4E0A;&#x662F;&#x628A;&#x6D88;&#x606F;&#x961F;&#x5217;&#x5168;&#x90E8;&#x6E05;&#x7A7A;&#xFF0C;&#x7136;&#x540E;&#x8BA9;MessageQueue.next()&#x8FD4;&#x56DE;null&#x4EE4;Looper.loop()&#x5FAA;&#x73AF;&#x7ED3;&#x675F;&#x4ECE;&#x800C;&#x7EC8;&#x6B62;Handler&#x673A;&#x5236;&#xFF0C;&#x4F46;&#x662F;&#x5B58;&#x5728;&#x7740;&#x4E0D;&#x5B89;&#x5168;&#x7684;&#x5730;&#x65B9;&#x662F;&#x53EF;&#x80FD;&#x6709;&#x4E9B;&#x6D88;&#x606F;&#x5728;&#x6D88;&#x606F;&#x961F;&#x5217;&#x6CA1;&#x6765;&#x5F97;&#x53CA;&#x5904;&#x7406;&#x3002;&#x800C;quitsafely()&#x505A;&#x4E86;&#x4F18;&#x5316;&#xFF0C;&#x8BE5;&#x65B9;&#x6CD5;&#x4EC5;&#x4EC5;&#x4F1A;&#x6E05;&#x7A7A;MessageQueue&#x6D88;&#x606F;&#x6C60;&#x4E2D;&#x5168;&#x90E8;&#x7684;&#x5EF6;&#x8FDF;&#x6D88;&#x606F;&#x3002;&#x5E76;&#x5C06;&#x6D88;&#x606F;&#x6C60;&#x4E2D;&#x5168;&#x90E8;&#x7684;&#x975E;&#x5EF6;&#x8FDF;&#x6D88;&#x606F;&#x6D3E;&#x53D1;&#x51FA;&#x53BB;&#x8BA9;Handler&#x53BB;&#x5904;&#x7406;&#xFF0C;quitSafely&#x76F8;&#x6BD4;&#x4E8E;quit&#x65B9;&#x6CD5;&#x5B89;&#x5168;&#x4E4B;&#x5904;&#x5728;&#x4E8E;&#x6E05;&#x7A7A;&#x6D88;&#x606F;&#x4E4B;&#x524D;&#x4F1A;&#x6D3E;&#x53D1;&#x5168;&#x90E8;&#x7684;&#x975E;&#x5EF6;&#x8FDF;&#x6D88;&#x606F;&#x3002;</p>
+<p>&#x8FD9;&#x4E24;&#x7BC7;handler&#x7684;&#x6587;&#x7AE0;&#x662F;&#x4E4B;&#x524D;&#x5728;&#x5B66;&#x4E60;&#x8FC7;&#x7A0B;&#x4E2D;&#x505A;&#x7684;&#x7B14;&#x8BB0;&#xFF0C;&#x6211;&#x518D;&#x62FF;&#x51FA;&#x6765;&#x6574;&#x7406;&#x4E00;&#x904D;&#x3002;&#x7531;&#x4E8E;&#x5B66;&#x4E60;&#x8FC7;&#x7A0B;&#x4E2D;&#x4E5F;&#x662F;&#x770B;&#x4E86;&#x5F88;&#x591A;&#x7F51;&#x4E0A;&#x7684;&#x535A;&#x5BA2;&#xFF0C;&#x5F53;&#x65F6;&#x4E5F;&#x6CA1;&#x6709;&#x8BB0;&#x5F55;&#x3002;&#x6240;&#x4EE5;&#x5982;&#x6709;&#x535A;&#x4E3B;&#x89C9;&#x5F97;&#x4FB5;&#x6743;&#x6216;&#x9700;&#x8981;&#x505A;&#x6CE8;&#x91CA;&#x7684;&#x53EF;&#x4EE5;&#x8054;&#x7CFB;&#x6211;&#xFF0C;&#x6211;&#x4F1A;&#x8865;&#x4E0A;&#x539F;&#x6587;&#x94FE;&#x63A5;&#x548C;&#x8BF4;&#x660E;&#x3002;<br>&#x5982;&#x679C;&#x8FD9;&#x4E24;&#x7BC7;&#x6587;&#x7AE0;&#x5B58;&#x5728;&#x54EA;&#x4E9B;&#x9519;&#x8BEF;&#xFF0C;&#x4E5F;&#x8BF7;&#x5404;&#x4F4D;&#x5927;&#x4F6C;&#x76F4;&#x63A5;&#x8BC4;&#x8BBA;&#xFF0C;&#x9632;&#x6B62;&#x6211;&#x8BEF;&#x5BFC;&#x4E86;&#x522B;&#x4EBA;&#xFF0C;&#x540E;&#x7EED;&#x6211;&#x4E5F;&#x4F1A;&#x4FEE;&#x6539;&#x7684;&#x3002;</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+        </div>
+
+        <blockquote class="post-copyright">
+    <div class="content">
+        
+<span class="post-time">
+    Last updated: <time datetime="2022-03-21T06:48:53.000Z" itemprop="dateUpdated">2022-03-21 14:48:53</time>
+</span>
+
+
+        
+        原文链接：<a href="/blog/posts/336102a1/" target="_blank" rel="external">https://secretlin.github.io/blog/posts/336102a1/</a>
+        
+    </div>
+    <footer>
+        <div onclick="location.href='https://secretlin.github.io/blog'">
+            <img src="/blog/img/avatar.jpg" alt="Secret">
+            <a>Secret</a>
+        </div>
+    </footer>
+</blockquote>
+
+        
+    <div class="page-reward">
+        <nav class="myreward">
+            <a id="rewardBtn" href="javascript:;"><span>打&nbsp;赏</span><span>装成好像很多人打赏的样子</span></a>
+        </nav>
+    </div>
+
+
+
+        <div class="post-footer">
+            
+	<ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/blog/tags/Android/">Android</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/blog/tags/Handler/">Handler</a></li></ul>
+
+
+            
+<div class="page-share-wrap">
+    
+
+<div class="page-share" id="pageShare">
+    <ul class="reset share-icons">
+      <li>
+        <a class="weibo share-sns" target="_blank" href="http://service.weibo.com/share/share.php?url=https://secretlin.github.io/blog/posts/336102a1/&title=《浅析Handler消息机制二》 — Secret&pic=https://secretlin.github.io/blog/img/avatar.jpg" data-title="微博">
+          <i class="icon icon-weibo"></i>
+        </a>
+      </li>
+      <li>
+        <a class="weixin share-sns wxFab" href="javascript:;" data-title="微信">
+          <i class="icon icon-weixin"></i>
+        </a>
+      </li>
+      <li>
+        <a class="qq share-sns" target="_blank" href="http://connect.qq.com/widget/shareqq/index.html?url=https://secretlin.github.io/blog/posts/336102a1/&title=《浅析Handler消息机制二》 — Secret&source=本文进一步分析Handler和Looper的源码" data-title=" QQ">
+          <i class="icon icon-qq"></i>
+        </a>
+      </li>
+      <li>
+        <a class="facebook share-sns" target="_blank" href="https://www.facebook.com/sharer/sharer.php?u=https://secretlin.github.io/blog/posts/336102a1/" data-title=" Facebook">
+          <i class="icon icon-facebook"></i>
+        </a>
+      </li>
+      <li>
+        <a class="twitter share-sns" target="_blank" href="https://twitter.com/intent/tweet?text=《浅析Handler消息机制二》 — Secret&url=https://secretlin.github.io/blog/posts/336102a1/&via=https://secretlin.github.io/blog" data-title=" Twitter">
+          <i class="icon icon-twitter"></i>
+        </a>
+      </li>
+      <li>
+        <a class="google share-sns" target="_blank" href="https://plus.google.com/share?url=https://secretlin.github.io/blog/posts/336102a1/" data-title=" Google+">
+          <i class="icon icon-google-plus"></i>
+        </a>
+      </li>
+    </ul>
+ </div>
+
+
+
+    <a href="javascript:;" id="shareFab" class="page-share-fab waves-effect waves-circle">
+        <i class="icon icon-share-alt icon-lg"></i>
+    </a>
+</div>
+
+
+
+        </div>
+    </div>
+
+    
+<nav class="post-nav flex-row flex-justify-between flex-row-reverse">
+  
+
+  
+    <div class="waves-block waves-effect next">
+      <a href="/blog/posts/8e12c08/" id="post-next" class="post-nav-link">
+        <h4 class="title" data-hover="下一篇：浅析Handler消息机制一">下一篇：浅析Handler消息机制一</h4>
+      </a>
+    </div>
+  
+</nav>
+
+
+
+    
+    
+
+    
+
+    
+    <!-- Valine Comments -->
+    <div class="comments vcomment" id="comments"></div>
+    <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+    <script src="//unpkg.com/valine@latest/dist/Valine.min.js"></script>
+    <!-- Valine Comments script -->
+    <script>
+        var GUEST_INFO = ['nick','mail','link'];
+        var guest_info = 'nick,mail,link'.split(',').filter(function(item){
+          return GUEST_INFO.indexOf(item) > -1
+        });
+        new Valine({
+            el: '#comments',
+            notify: 'false' == 'true',
+            verify: 'false' == 'true',
+            appId: "tbpSi80c6X6VmDlakwvaVsGi-gzGzoHsz",
+            appKey: "TVEKO3hxokMANlusUg97JE5i",
+            avatar: "mm",
+            placeholder: "please say something...",
+            guest_info: guest_info.length == 0 ? GUEST_INFO : guest_info,
+            pageSize: "10"
+        })
+    </script>
+    <!-- Valine Comments end -->
+
+
+
+</article>
+
+</div>
+
+        <footer class="footer">
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js">
+</script>
+    <div class="footer-content">
+        <span class="power">
+            <i class="icon icon-lg icon-copyright"></i>
+            2018
+            <i class="icon icon-lg icon-heart"></i>
+            <a href="https://secretlin.github.io/blog">https://github.com/SecretLin/blog</a>
+            <br>
+            Power by
+            <a href="https://hexo.io/" target="_blank" rel="external nofollow">Hexo</a>&nbsp;·&nbsp;
+            Theme
+            <a class="tomotoeslink" href="https://github.com/tomotoes/hexo-theme-tomotoes/" target="_blank" rel="external nofollow">tomotoes</a>
+        </span>
+
+        <br>
+
+        <span id="RunTime" style="color:#a7a7a2;"></span>
+        <br>
+
+        <span>
+            
+	<i class="icon icon-lg icon-user">
+<span id="busuanzi_container_site_uv" style="display:none">
+       访问用户：<span id="busuanzi_value_site_uv"></span>
+    </span>人</i>
+    ·
+    <i class="icon icon-lg icon-eye">
+    <span id="busuanzi_container_site_pv" style="display:none">
+      访问次数：<span id="busuanzi_value_site_pv"></span>
+    </span>次
+    </i>
+
+
+        </span>
+        <br>
+
+        <span class="license">This blog is licensed under a <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.</span>
+    </div>
+</footer>
+
+    </main>
+    
+        
+<div id="reward" class="page-modal reward-lay">
+    <a class="close" href="javascript:;"><i class="icon icon-close"></i></a>
+    <h3 class="reward-title">
+        <i class="icon icon-quote-left"></i>
+        <span>感谢您的鼓励支持！</span>
+        <i class="icon icon-quote-right"></i>
+    </h3>
+    <div class="reward-content">
+        
+        <div class="reward-code">
+            <img id="rewardCode" data-img="/blog/img/avatar.jpg" alt="打赏二维码">
+        </div>
+        
+        <label class="reward-toggle">
+            <input id="rewardToggle" type="checkbox" class="reward-toggle-check" data-wechat="/blog/img/wechat.jpg" data-alipay="/blog/img/alipay.jpg">
+            <div class="reward-toggle-ctrol">
+                <span class="reward-toggle-item wechatPay">&nbsp;&nbsp;微信&nbsp;&nbsp;</span>
+                <span class="reward-toggle-item alipayPay">支付宝</span>
+            </div>
+        </label>
+        
+        <i class="icon icon-caret-up"></i>
+    </div>
+</div>
+
+
+    
+    <div class="mask" id="mask"></div>
+<a href="javascript:;" id="gotop" class="waves-effect waves-circle waves-light"><span class="icon icon-lg icon-chevron-up"></span></a>
+
+
+
+<div class="global-share" id="globalShare">
+    <ul class="reset share-icons">
+      <li>
+        <a class="weibo share-sns" target="_blank" href="http://service.weibo.com/share/share.php?url=https://secretlin.github.io/blog/posts/336102a1/&title=《浅析Handler消息机制二》 — Secret&pic=https://secretlin.github.io/blog/img/avatar.jpg" data-title="微博">
+          <i class="icon icon-weibo"></i>
+        </a>
+      </li>
+      <li>
+        <a class="weixin share-sns wxFab" href="javascript:;" data-title="微信">
+          <i class="icon icon-weixin"></i>
+        </a>
+      </li>
+      <li>
+        <a class="qq share-sns" target="_blank" href="http://connect.qq.com/widget/shareqq/index.html?url=https://secretlin.github.io/blog/posts/336102a1/&title=《浅析Handler消息机制二》 — Secret&source=本文进一步分析Handler和Looper的源码" data-title=" QQ">
+          <i class="icon icon-qq"></i>
+        </a>
+      </li>
+      <li>
+        <a class="facebook share-sns" target="_blank" href="https://www.facebook.com/sharer/sharer.php?u=https://secretlin.github.io/blog/posts/336102a1/" data-title=" Facebook">
+          <i class="icon icon-facebook"></i>
+        </a>
+      </li>
+      <li>
+        <a class="twitter share-sns" target="_blank" href="https://twitter.com/intent/tweet?text=《浅析Handler消息机制二》 — Secret&url=https://secretlin.github.io/blog/posts/336102a1/&via=https://secretlin.github.io/blog" data-title=" Twitter">
+          <i class="icon icon-twitter"></i>
+        </a>
+      </li>
+      <li>
+        <a class="google share-sns" target="_blank" href="https://plus.google.com/share?url=https://secretlin.github.io/blog/posts/336102a1/" data-title=" Google+">
+          <i class="icon icon-google-plus"></i>
+        </a>
+      </li>
+    </ul>
+ </div>
+
+
+<div class="page-modal wx-share" id="wxShare">
+    <a class="close" href="javascript:;"><i class="icon icon-close"></i></a>
+    <p class="wechatshare">扫一扫，分享到微信</p>
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMYAAADGCAAAAACs8KCBAAACHElEQVR42u3aW1LDMAwF0O5/02UBhXAlGWaiHH8xbYJ9+BDW4/WK1/tjfX77+eSruCbvYmBg7Ga8L1fyzE8bV39DdV8MDIynMZJDXD9TDc3XB63ui4GBgXG9ffJ7rp/HwMDAOMtIDjTBY2BgYEyS2PxKNznWn+fiGBgYN2TkVff///lP+hsYGBi3YkyK9fmVcfJJdCoMDIzVjDzA9a5op1LfaCwDAwNjNaM3EJYEymTL5MkDd14MDIzbMqoBsVd0q7YKqu9iYGDsZuSDWfPyWa+sP7r8YWBgrGD0Lm291avkl8csMDAwVjNOpaDVNLj6L6FZC8TAwLgtY36sahuymsoWklgMDIyljF6zME9W85Cdt0K/eQsDA+MBjCQe5+llPkyWF/V+OQMGBsZqxrxVMG8A5JfRUcMAAwPjtozqIXqBsjeukSS0v8yMYGBgLGXkQfBYEX++MDAwVjN6gxeTlLU3wFG4SmJgYCxl9F7rtQSqiW6hzYCBgfEYxqRMf6AZ2WqaYmBgYFTDaDNcxsgfP8fAwHgAY16Yy7/N2wlJexUDA2M3411c+aWw2tTMU+Ko0IaBgbGI0esM5uW5vDA3D+4YGBi7GZMAmhyoOn7RewsDA+MJjDzwzQNr/ofIT4uBgYFRHQsbjU3EbVQMDAyMXh6cXy6rjcxmfwMDA2MRo9cMmAfKU7tgYGDsZlRTx1NNzeq18kAjEwMD436MLwVaGQY7xyFDAAAAAElFTkSuQmCC" alt="微信分享二维码">
+</div>
+
+
+
+
+    <!-- waves按钮特效 -->
+<script src="//cdn.bootcss.com/node-waves/0.7.4/waves.min.js"></script>
+
+<!-- 主题配置脚本 -->
+<script>
+var BLOG = { ROOT: '/blog/', SHARE: true, REWARD: true };
+</script>
+
+<!-- jquery -->
+<script src="/blog/js/jquery.min.js?v=3.0"></script>
+
+<!-- 搜索 -->
+
+<div class="search-panel" id="search-panel">
+    <ul class="search-result" id="search-result"></ul>
+</div>
+<template id="search-tpl">
+<li class="item waves-block waves-effect" onclick="location.href='{path}'">
+    <div class="title ellipsis" title="{title}">{title}</div>
+</li>
+</template>
+
+
+<!-- main博客脚本 -->
+<script src="/blog/js/main.min.js?v=3.0"></script>
+
+<!-- 动画&配置 -->
+<script src="/blog/js/script.min.js?v=3.0"></script>
+
+<!-- 脚本管理 -->
+<script>
+
+if(window.innerWidth > 800){
+	/* 3D标题 */
+	$(".content-header").on("mousemove", threedee);
+
+	/* 底部追随鼠标 */
+	$(".footer").hover(2);
+
+	/* gotop键的涟漪 */
+	$("#gotop").hover(1);
+
+	/* 赞赏的粒子雨 */
+	$("#reward").hover(3);
+
+	/* 微信公众号的底部渲染 */
+	$("#wechat").hover(4);
+
+    /* 标题跳动 */
+    $(".archivestitle").bumpyText();
+
+	/* 图片点击放大 */
+	const postimg = jQuery(".post-content img:not(.github-emoji)");
+	postimg.on("click",function(){
+
+		mask.classList.add("in");
+		main.classList.add("Mask");
+		menu.classList.add("Mask");
+		var myimg = this.cloneNode(true);
+		myimg.classList.add("imgShow");
+
+		setTimeout(function(){
+			jQuery(myimg).animate({
+				opacity:"1"
+			},1000);
+		},0);
+
+		document.body.appendChild(myimg);
+
+		myimg.onclick=function(){
+			document.body.removeChild(myimg);
+			mask.classList.remove("in");
+			main.classList.remove("Mask");
+			menu.classList.remove("Mask");
+		};
+
+	});
+
+}
+
+/* 名字跳动 */
+$("#name").bumpyText();
+
+
+/* 网站运行时间 */
+setInterval(function () {
+	setTime("2018/02/09");
+}, 1000);
+
+/* 文章块的淡出 */
+postshow();
+
+/* 座右铭 */
+
+   getHitokoto();
+
+
+
+/* 粘贴提示 */
+G($(".post-content"), location.href, "Secret");
+
+
+/* 控制台 */
+if (window.console && window.console.log) {
+	setTimeout(function () {
+		console.log("\n %c 一个坏掉的番茄 %c  © Simon Ma  http://tomotoes.com \n\n", "color:#FFFFFB;background:#1abc9c;padding:5px 0;border-radius:.5rem 0 0 .5rem;", "color:#FFFFFB;background:#080808;padding:5px 0;border-radius:0 .5rem .5rem 0;");
+	}, 0);
+}
+
+</script>
+
+
+
+
+<!-- 公式渲染 -->
+
+
+
+<!-- 不蒜子 -->
+
+<script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+</body>
+</html>
